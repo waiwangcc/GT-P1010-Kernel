@@ -1,0 +1,67 @@
+ramzswap: Compressed RAM swap device
+------------------------------------
+
+Project home: http://compcache.googlecode.com
+
+This module creates RAM based block device (named ramzswap0) which acts
+as swap disk. Pages swapped to this disk are compressed and stored in
+memory itself.
+
+It uses these components:
+ - xvMalloc: memory allocator (xvmalloc.ko)
+ - LZO1X: de/compressor: (lzo_compress.ko, lzo_decompress.ko)
+
+Usage:
+ - modprobe ramzswap [memlimit_kb=<val>|disksize_kb=<val>] [backing_swap=<dev>]
+
+   memlimit_kb: This param is applicable only when backing_swap is given.
+	It is limit on amount compressed data stored in memory. Any
+	additional data is forwarded to backing_swap. It cannot be greater
+	than backing device size. If missing or 0, default value is used:
+	15% of RAM or backing device size, whichever is smaller.
+
+   disksize_kb: This param is applicable only when backing_swap is not given.
+	It is limit on amount of *uncompressed* worth of data stored in
+	memory. For e.g. disksize_kb=1024 means it can hold 1024kb worth of
+	uncompressed data even if this data compresses to just, say, 100kb.
+	If missing or 0, default value is used: 25% of RAM.
+
+   backing_swap: This is block device to be used as backing store for ramzswap.
+	It must be a valid swap partition. We move data to this device when we
+	encounter incompressible page or memlimit is reached. TODO: we may also
+	move some pages from ramzswap to this device in case system is really
+	low on memory.
+	This device is not directly visible to kernel as a swap device
+	(/proc/swaps will only show /dev/ramzswap0 and not this device).
+	Managing this backing device is the job of ramzswap module.
+
+Examples:
+	1) modprobe ramzswap memlimit_kb=10240 backing_swap=/dev/sda2
+	sets ramzswap limit as 10MB and /dev/sda2 as backing swap device.
+	NOTE: here /dev/sda2 is a valid swap partition.
+
+	2) modprobe ramzswap backing_swap=/dev/sda2
+	same as (1) but memlimit is set to default: 15% of RAM or size of
+	backing swap device, whichever is smaller.
+
+	3) modprobe ramzswap disksize_kb=10240
+	sets ramzswap disk size as 10MB.
+
+	4) modprobe ramzswap.ko
+	same as (3) but ramzswap disk size will be set to default:
+	25% of RAM size.
+
+	Once module is loaded, activate this swap with highest priority:
+	swapon /dev/ramzswap0 -p 100
+	(-p param set swap priority)
+
+Notes:
+ - ramzswap stats are exported via /proc/ramzswap
+ - If you give non-swap partition as backing_swap, nothing bad will happen -
+   swapon will simply fail to recognize /dev/ramzswap0 as swap partition.
+   So, in this case, unload the module and reload with correct backing_swap.
+
+Please report any problems to:
+
+Nitin Gupta
+ngupta@vflare.org

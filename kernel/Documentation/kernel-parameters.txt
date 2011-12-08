@@ -414,6 +414,15 @@ and is between 256 and 4096 characters. It is defined in the file
 			possible to determine what the correct size should be.
 			This option provides an override for these situations.
 
+	ramzswap.memlimit_kb=
+			See Documentation/blockdev/ramzswap.txt.
+
+	ramzswap.disksize_kb=
+			See Documentation/blockdev/ramzswap.txt.
+
+	ramzswap.backing_swap=
+			See Documentation/blockdev/ramzswap.txt.
+
 	security=	[SECURITY] Choose a security module to enable at boot.
 			If this boot parameter is not specified, only the first
 			security module asking for security registration will be
