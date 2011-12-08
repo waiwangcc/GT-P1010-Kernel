@@ -226,8 +226,8 @@ CONFIG_SHELL := $(shell if [ -x "$$BASH" ]; then echo $$BASH; \
 
 HOSTCC       = gcc
 HOSTCXX      = g++
-HOSTCFLAGS   = -Wall -Wstrict-prototypes -O2 -fomit-frame-pointer
-HOSTCXXFLAGS = -O2
+HOSTCFLAGS   = -Wall -Wstrict-prototypes -O3 -fomit-frame-pointer
+HOSTCXXFLAGS = -O3
 
 # Decide whether to build built-in, modular, or both.
 # Normally, just do built-in.
@@ -328,11 +328,12 @@ CHECK		= sparse
 CHECKFLAGS     := -D__linux__ -Dlinux -D__STDC__ -Dunix -D__unix__ \
 		  -Wbitwise -Wno-return-void $(CF)
 MODFLAGS	= -DMODULE
-CFLAGS_MODULE   = $(MODFLAGS)
-AFLAGS_MODULE   = $(MODFLAGS)
+#COMMON_OPT_FLAGS = -march=armv7-a -mcpu=cortex-a8 -mfpu=neon -mabi=aapcs-linux #-Os -ftree-vectorize -ffast-math -fsingle-precision-constant -fforce-addr -fomit-frame-pointer -fstrength-reduce #-O3 -pipe -mfloat-abi=softfp
+CFLAGS_MODULE   = $(MODFLAGS) #$(COMMON_OPT_FLAGS)
+AFLAGS_MODULE   = $(MODFLAGS) #$(COMMON_OPT_FLAGS)
 LDFLAGS_MODULE  =
-CFLAGS_KERNEL	=
-AFLAGS_KERNEL	=
+CFLAGS_KERNEL	= -mcpu=cortex-a8 -ftree-vectorize -ffast-math -fsingle-precision-constant
+AFLAGS_KERNEL	= -mcpu=cortex-a8 -ftree-vectorize -ffast-math -fsingle-precision-constant
 
 
 # Use LINUXINCLUDE when you must reference the include/ directory.
@@ -346,7 +347,7 @@ KBUILD_CPPFLAGS := -D__KERNEL__
 
 KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
 		   -fno-strict-aliasing -fno-common \
-		   -Werror \
+		   -Wno-unused-but-set-variable -Wno-uninitialized \
 		   -Werror-implicit-function-declaration
 KBUILD_AFLAGS   := -D__ASSEMBLY__
 
@@ -522,9 +523,9 @@ endif # $(dot-config)
 all: vmlinux
 
 ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
-KBUILD_CFLAGS	+= -Os
+KBUILD_CFLAGS	+= -Os -Wno-address
 else
-KBUILD_CFLAGS	+= -O2
+KBUILD_CFLAGS	+= -O2 -Wno-address
 endif
 
 include $(srctree)/arch/$(SRCARCH)/Makefile
