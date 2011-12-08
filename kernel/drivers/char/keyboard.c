@@ -1123,7 +1123,9 @@ static int emulate_raw(struct vc_data *vc, unsigned int keycode,
 
 #define HW_RAW(dev)	0
 
+#if defined CONFIG_INPUT_KEYBOARD
 #warning "Cannot generate rawmode keyboard for your architecture yet."
+#endif
 
 static int emulate_raw(struct vc_data *vc, unsigned int keycode, unsigned char up_flag)
 {

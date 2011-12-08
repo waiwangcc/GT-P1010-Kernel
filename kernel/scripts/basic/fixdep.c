@@ -373,10 +373,11 @@ void print_deps(void)
 void traps(void)
 {
 	static char test[] __attribute__((aligned(sizeof(int)))) = "CONF";
+	char *testp = test;
 
-	if (*(int *)test != INT_CONF) {
+	if (*(int *)testp != INT_CONF) {
 		fprintf(stderr, "fixdep: sizeof(int) != 4 or wrong endianess? %#x\n",
-			*(int *)test);
+			*(int *)testp);
 		exit(2);
 	}
 }

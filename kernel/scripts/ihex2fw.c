@@ -252,17 +252,18 @@ static int output_records(int outfd)
 {
 	unsigned char zeroes[6] = {0, 0, 0, 0, 0, 0};
 	struct ihex_binrec *p = records;
+	int rc;
 
 	while (p) {
 		uint16_t writelen = (p->len + 9) & ~3;
 
 		p->addr = htonl(p->addr);
 		p->len = htons(p->len);
-		write(outfd, &p->addr, writelen);
+		rc = write(outfd, &p->addr, writelen);
 		p = p->next;
 	}
 	/* EOF record is zero length, since we don't bother to represent
 	   the type field in the binary version */
-	write(outfd, zeroes, 6);
+	rc = write(outfd, zeroes, 6);
 	return 0;
 }
