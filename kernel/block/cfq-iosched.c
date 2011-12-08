@@ -1349,8 +1349,13 @@ static void cfq_exit_single_io_context(struct io_context *ioc,
 		 * Ensure we get a fresh copy of the ->key to prevent
 		 * race between exiting task and queue
 		 */
-		smp_read_barrier_depends();
-		if (cic->key)
+	/*
+	* test_and_clear_bit() implies a memory barrier, paired with
+	* the wmb() in fs/ioprio.c, so the value seen for ioprio is the
+	* new one.
+	*/
+	if (unlikely(test_and_clear_bit(IOC_CFQ_IOPRIO_CHANGED,
+		ioc->ioprio_changed)))
 			__cfq_exit_single_io_context(cfqd, cic);
 
 		spin_unlock_irqrestore(q->queue_lock, flags);
@@ -1459,7 +1464,6 @@ static void changed_ioprio(struct io_context *ioc, struct cfq_io_context *cic)
 static void cfq_ioc_set_ioprio(struct io_context *ioc)
 {
 	call_for_each_cic(ioc, changed_ioprio);
-	ioc->ioprio_changed = 0;
 }
 
 static struct cfq_queue *
