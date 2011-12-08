@@ -83,6 +83,12 @@
 #define SCPLL_STATUS_ADDR      (MSM_SCPLL_BASE + 0x18)
 #define SCPLL_FSM_CTL_EXT_ADDR (MSM_SCPLL_BASE + 0x10)
 
+#define VREF_SEL     1	/* 0: 0.625V (50mV step), 1: 0.3125V (25mV step). */
+#define V_STEP       (25 * (2 - VREF_SEL)) /* Minimum voltage step size. */
+
+#define SEMC_ACPU_MIN_UV_MV 850U
+#define SEMC_ACPU_MAX_UV_MV 1425U
+
 #define dprintk(msg...) \
 	cpufreq_debug_printk(CPUFREQ_DEBUG_DRIVER, "cpufreq-msm", msg)
 
@@ -767,3 +773,42 @@ void __init msm_acpu_clock_init(struct msm_acpu_clock_platform_data *clkdata)
 	}
 #endif
 }
+
+#ifdef CONFIG_CPU_FREQ_VDD_LEVELS
+
+ssize_t acpuclk_get_vdd_levels_str(char *buf)
+{
+	int i, len = 0;
+	if (buf)
+	{
+		mutex_lock(&drv_state.lock);
+		for (i = 0; acpu_freq_tbl[i].acpuclk_khz; i++)
+		{
+			len += sprintf(buf + len, "%8u: %4d\n", acpu_freq_tbl[i].acpuclk_khz, acpu_freq_tbl[i].vdd);
+		}
+		mutex_unlock(&drv_state.lock);
+	}
+	return len;
+}
+
+void acpuclk_set_vdd(unsigned int khz, int vdd)
+{
+	int i;
+	unsigned int new_vdd;
+	vdd = vdd / V_STEP * V_STEP;
+	mutex_lock(&drv_state.lock);
+	for (i = 0; acpu_freq_tbl[i].acpuclk_khz; i++)
+	{
+		if (khz == 0)
+			new_vdd = min(max((unsigned int)(acpu_freq_tbl[i].vdd + vdd), SEMC_ACPU_MIN_UV_MV), SEMC_ACPU_MAX_UV_MV);
+		else if (acpu_freq_tbl[i].acpuclk_khz == khz)
+			new_vdd = min(max((unsigned int)vdd, SEMC_ACPU_MIN_UV_MV), SEMC_ACPU_MAX_UV_MV);
+		else continue;
+
+		acpu_freq_tbl[i].vdd = new_vdd;
+
+	}
+	mutex_unlock(&drv_state.lock);
+}
+
+#endif
