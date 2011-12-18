@@ -61,6 +61,8 @@ static struct seport_plug_detect_data *seport_vad_data;
 #ifdef CONFIG_ES209RA_HEADSET
 #define HS_HEADSET_SWITCH_OFF_K 0x85
 #endif
+#define HS_HEADSET_SWITCH_2_K	0xF0
+#define HS_HEADSET_SWITCH_3_K	0xF1
 #define HS_REL_K		0xFF	/* key release */
 
 #define KEY(hs_key, input_key) ((hs_key << 24) | input_key)
@@ -168,6 +170,8 @@ static const uint32_t hs_key_map[] = {
 #ifdef CONFIG_ES209RA_HEADSET
 	KEY(HS_HEADSET_SWITCH_OFF_K, KEY_MEDIA),
 #endif
+	KEY(HS_HEADSET_SWITCH_2_K, KEY_VOLUMEUP),
+	KEY(HS_HEADSET_SWITCH_3_K, KEY_VOLUMEDOWN),
 	0
 };
 
@@ -278,6 +282,8 @@ static void report_hs_key(uint32_t key_code, uint32_t key_parm)
 		es209ra_audio_jack_button_handler(key_code);
 		return;
 #else
+	case KEY_VOLUMEUP:
+	case KEY_VOLUMEDOWN:
 		input_report_key(hs->ipdev, key, (key_code != HS_REL_K));
 #endif /* CONFIG_SEMC_SEPORT_PLATFORM */
 		break;
@@ -582,6 +588,8 @@ static int __devinit hs_probe(struct platform_device *pdev)
 	ipdev->id.version	= 1;
 
 	input_set_capability(ipdev, EV_KEY, KEY_MEDIA);
+	input_set_capability(ipdev, EV_KEY, KEY_VOLUMEUP);
+	input_set_capability(ipdev, EV_KEY, KEY_VOLUMEDOWN);
 	/* input_set_capability(ipdev, EV_SW, SW_HEADPHONE_INSERT); */
 	input_set_capability(ipdev, EV_KEY, KEY_POWER);
 	input_set_capability(ipdev, EV_KEY, KEY_END);
