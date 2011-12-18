@@ -20,9 +20,13 @@
 #ifndef __LINUX_MSM_CAMERA_H
 #define __LINUX_MSM_CAMERA_H
 
+#ifdef MSM_CAMERA_BIONIC
+#include <sys/types.h>
+#endif
 #include <linux/types.h>
 #include <asm/sizes.h>
 #include <linux/ioctl.h>
+#include <linux/time.h>
 
 #define CONFIG_ES209_CAMERA_DRV	//Todo: Should not be here
 #define CONFIG_ES209RA_CAMERA_DRV	//Todo: Should not be here
