@@ -1892,7 +1892,7 @@ int vfe_cmd_init(struct msm_vfe_callback *presp,
 		rc = -ENOMEM;
 		goto cmd_init_failed1;
 	}
-
+	atomic_set(&ctrl->vfe_serv_interrupt, 0);
 	ctrl->vfeirq  = vfeirq->start;
 
 	ctrl->vfebase =
@@ -1939,7 +1939,6 @@ void vfe_cmd_release(struct platform_device *dev)
 #ifndef DELETE_SPIN_LOCK
 	unsigned long flags;
 #endif /*DELETE_SPIN_LOCK*/
-
 	atomic_set(&ctrl->vfe_serv_interrupt, 0);
 	disable_irq(ctrl->vfeirq);
 	free_irq(ctrl->vfeirq, 0);
