@@ -81,9 +81,9 @@
 #define SYSTEM_BUS_NPA_RESOURCE_NAME "/bus/arbiter"
 static struct pm_qos_plugin system_bus_plugin = {
 	.data = SYSTEM_BUS_NPA_RESOURCE_NAME,
-	.add_fn = npa_pm_qos_add,
-	.update_fn = npa_pm_qos_update,
-	.remove_fn = npa_pm_qos_remove
+	.add_fn = msm_pm_qos_add,
+	.update_fn = msm_pm_qos_update,
+	.remove_fn = msm_pm_qos_remove
 };
 
 DECLARE_RESOURCE_REMOTE_AGGREGATION(
