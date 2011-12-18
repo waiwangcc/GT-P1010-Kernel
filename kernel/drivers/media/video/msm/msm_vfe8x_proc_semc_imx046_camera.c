@@ -2313,6 +2313,8 @@ void vfe_start(struct vfe_cmd_start *in)
 	/* save variables to local. */
 	ctrl->vfeOperationMode = in->operationMode;
 	if (ctrl->vfeOperationMode == VFE_START_OPERATION_MODE_SNAPSHOT) {
+
+		update_axi_qos(MSM_AXI_QOS_SNAPSHOT);
 		/* in snapshot mode, initialize snapshot count*/
 		ctrl->vfeSnapShotCount = in->snapshotCount;
 
@@ -2341,7 +2343,8 @@ void vfe_start(struct vfe_cmd_start *in)
 			ctrl->vfeFrameSkipPeriod =
 				ctrl->vfeFrameSkip.output2Period;
 		}
-	}
+	} else
+		update_axi_qos(MSM_AXI_QOS_PREVIEW);
 
 	/* enable color conversion for bayer sensor
 	if stats enabled, need to do color conversion. */
