@@ -146,11 +146,15 @@ static void mdp_dma2_update_lcd(struct msm_fb_data_type *mfd)
 
 	if (mfd->fb_imgType == MDP_BGR_565)
 		dma2_cfg_reg |= DMA_PACK_PATTERN_BGR;
+	else if (mfd->fb_imgType == MDP_RGBA_8888)
+		dma2_cfg_reg |= DMA_PACK_PATTERN_BGR;
 	else
 		dma2_cfg_reg |= DMA_PACK_PATTERN_RGB;
 
-	if (outBpp == 4)
+	if (outBpp == 4) {
 		dma2_cfg_reg |= DMA_IBUF_C3ALPHA_EN;
+		dma2_cfg_reg |= DMA_IBUF_FORMAT_xRGB8888_OR_ARGB8888;
+	}
 
 	if (outBpp == 2)
 		dma2_cfg_reg |= DMA_IBUF_FORMAT_RGB565;
@@ -267,6 +271,9 @@ static void mdp_dma2_update_lcd(struct msm_fb_data_type *mfd)
 		mddi_vdo_packet_descriptor = 0x5666;
 		dma2_cfg_reg |= DMA_DSTC0G_6BITS |	/* 666 18BPP */
 		    DMA_DSTC1B_6BITS | DMA_DSTC2R_6BITS;
+	} else if (mfd->panel_info.bpp == 24) {
+		dma2_cfg_reg |= DMA_DSTC0G_8BITS |      /* 888 24BPP */
+			DMA_DSTC1B_8BITS | DMA_DSTC2R_8BITS;
 	} else {
 		/* assuming 24 bpp */
 		mddi_vdo_packet_descriptor = 0x5888;
