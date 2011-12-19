@@ -26,7 +26,11 @@
 #include <linux/types.h>
 #include <asm/sizes.h>
 #include <linux/ioctl.h>
+#ifdef MSM_CAMERA_GCC
+#include <time.h>
+#else
 #include <linux/time.h>
+#endif
 
 #define CONFIG_ES209_CAMERA_DRV	//Todo: Should not be here
 #define CONFIG_ES209RA_CAMERA_DRV	//Todo: Should not be here
