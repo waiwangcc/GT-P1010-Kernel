@@ -2168,6 +2168,9 @@ static struct mmc_platform_data es209ra_sdcc_data1 = {
 #ifdef CONFIG_MMC_MSM_SDC1_DUMMY52_REQUIRED
 	.dummy52_required = 1,
 #endif
+	.msmsdcc_fmin	= 144000,
+	.msmsdcc_fmid	= 25000000,
+	.msmsdcc_fmax	= 49152000,
 };
 
 static struct mmc_platform_data es209ra_sdcc_data2 = {
@@ -2177,6 +2180,9 @@ static struct mmc_platform_data es209ra_sdcc_data2 = {
 #ifdef CONFIG_MMC_MSM_SDC2_DUMMY52_REQUIRED
 	.dummy52_required = 1,
 #endif
+	.msmsdcc_fmin	= 144000,
+	.msmsdcc_fmid	= 25000000,
+	.msmsdcc_fmax	= 49152000,
 };
 
 static void __init es209ra_init_mmc(void)
