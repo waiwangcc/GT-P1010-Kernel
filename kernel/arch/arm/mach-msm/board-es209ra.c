@@ -2405,6 +2405,7 @@ static void __init es209ra_init(void)
 	printk(KERN_ERR "PVR0F2: %x\n", get_predecode_repair_cache());
 	set_predecode_repair_cache();
 	printk(KERN_ERR "PVR0F2: %x\n", get_predecode_repair_cache());
+	msm_clock_init(msm_clocks_8x50, msm_num_clocks_8x50);
 
 #ifdef CONFIG_SMC91X
 	es209ra_cfg_smc91x();
@@ -2529,7 +2530,6 @@ static void __init es209ra_map_io(void)
 #ifndef CONFIG_CAPTURE_KERNEL
 	es209ra_allocate_memory_regions();
 #endif
-	msm_clock_init(msm_clocks_8x50, msm_num_clocks_8x50);
 }
 
 static int __init board_serialno_setup(char *serialno)
