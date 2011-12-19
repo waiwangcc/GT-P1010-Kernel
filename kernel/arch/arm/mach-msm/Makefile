@@ -14,6 +14,8 @@ endif
 obj-$(CONFIG_ARCH_MSM_ARM11) += acpuclock.o timer.o gpio.o
 obj-$(CONFIG_ARCH_MSM_SCORPION) += timer.o gpio.o
 
+obj-$(CONFIG_ARCH_MSM_SCORPION) += msm_fault_handlers.o
+
 obj-$(CONFIG_MSM_VIC) += irq-vic.o
 
 ifdef CONFIG_ARCH_QSD8X50
