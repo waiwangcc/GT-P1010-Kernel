@@ -2174,6 +2174,7 @@ static struct mmc_platform_data es209ra_sdcc_data1 = {
 	.msmsdcc_fmin	= 144000,
 	.msmsdcc_fmid	= 25000000,
 	.msmsdcc_fmax	= 49152000,
+	.nonremovable	= 0,
 };
 
 static struct mmc_platform_data es209ra_sdcc_data2 = {
@@ -2186,6 +2187,7 @@ static struct mmc_platform_data es209ra_sdcc_data2 = {
 	.msmsdcc_fmin	= 144000,
 	.msmsdcc_fmid	= 25000000,
 	.msmsdcc_fmax	= 49152000,
+	.nonremovable	= 1,
 };
 
 static void __init es209ra_init_mmc(void)
