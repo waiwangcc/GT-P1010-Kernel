@@ -38,6 +38,7 @@ obj-$(CONFIG_ARCH_QSD8X50) += sirc.o
 obj-$(CONFIG_MSM_FIQ_SUPPORT) += fiq_glue.o
 obj-$(CONFIG_MACH_TROUT) += board-trout-rfkill.o
 obj-$(CONFIG_MSM_SDIO_AL) += sdio_al.o
+obj-$(CONFIG_MSM_SDIO_AL_TEST) += sdio_al_test.o
 obj-$(CONFIG_MSM_SMD) += smd.o smd_debug.o remote_spinlock.o socinfo.o last_amsslog.o
 obj-$(CONFIG_MSM_SMD) += nand_partitions.o pmic.o
 obj-$(CONFIG_MSM_SMD) += rpc_hsusb.o rpc_pmapp.o rpc_fsusb.o
