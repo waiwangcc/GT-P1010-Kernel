@@ -1108,7 +1108,7 @@ static void msm_hs_request_clock_on_locked(struct uart_port *uport) {
 		clk_enable(msm_uport->clk);
 		if (use_low_power_wakeup(msm_uport))
 			set_irq_wake(msm_uport->wakeup.irq, 0);
-		disable_irq(msm_uport->wakeup.irq);
+		disable_irq_nosync(msm_uport->wakeup.irq);
 		/* fall-through */
 	case MSM_HS_CLK_REQUEST_OFF:
 		hrtimer_try_to_cancel(&msm_uport->clk_off_timer);
