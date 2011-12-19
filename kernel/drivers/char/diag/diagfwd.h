@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2009, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2008-2010, Code Aurora Forum. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -37,6 +37,7 @@ void __diag_smd_qdsp_send_req(int mode);
 int diag_device_write(void *buf, int proc_num);
 int diagfwd_connect(void);
 int diagfwd_disconnect(void);
+int mask_request_validate(unsigned char mask_buf[]);
 
 /* State for diag forwarding */
 extern int diag_debug_buf_idx;
