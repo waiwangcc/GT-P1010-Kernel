@@ -19,6 +19,7 @@
 #include <linux/moduleparam.h>
 
 #include <linux/mmc/host.h>
+#include <linux/suspend.h>
 
 #include "core.h"
 #include "host.h"
@@ -92,6 +93,8 @@ struct mmc_host *mmc_alloc_host(int extra, struct device *dev)
 	init_waitqueue_head(&host->wq);
 	INIT_DELAYED_WORK(&host->detect, mmc_rescan);
 	INIT_DELAYED_WORK_DEFERRABLE(&host->disable, mmc_host_deeper_disable);
+	host->pm_notify.notifier_call = mmc_pm_notify;
+
 
 #ifdef CONFIG_MMC_AUTO_SUSPEND
 	mutex_init(&host->auto_suspend_mutex);
@@ -190,6 +193,7 @@ int mmc_add_host(struct mmc_host *host)
 		return err;
 #endif
 	mmc_start_host(host);
+	register_pm_notifier(&host->pm_notify);
 
 	return 0;
 }
@@ -206,6 +210,7 @@ EXPORT_SYMBOL(mmc_add_host);
  */
 void mmc_remove_host(struct mmc_host *host)
 {
+	unregister_pm_notifier(&host->pm_notify);
 	mmc_stop_host(host);
 
 #ifdef CONFIG_DEBUG_FS
@@ -218,6 +223,7 @@ void mmc_remove_host(struct mmc_host *host)
 	device_del(&host->class_dev);
 
 	led_trigger_unregister_simple(host->led);
+
 }
 
 EXPORT_SYMBOL(mmc_remove_host);
