@@ -671,6 +671,8 @@ static boolean vfe_send_camif_error_msg(struct msm_vfe_resp *rp,
 			struct vfe_message *msg, void *data);
 static boolean vfe_send_bus_overflow_msg(struct msm_vfe_resp *rp,
 			struct vfe_message *msg, void *data);
+static boolean vfe_send_sof_msg(struct msm_vfe_resp *rp,
+			struct vfe_message *msg, void *data);
 
 static boolean invalid(struct msm_vfe_resp *rp,
 		struct vfe_message *_m, void *_d)
@@ -714,6 +716,8 @@ static struct {
 	[VFE_MSG_ID_CAMIF_ERROR] = { vfe_send_camif_error_msg,
 		VFE_MSG_GENERAL },
 	[VFE_MSG_ID_BUS_OVERFLOW] = { vfe_send_bus_overflow_msg,
+		VFE_MSG_GENERAL },
+	[VFE_MSG_ID_SOF_ACK] = { vfe_send_sof_msg,
 		VFE_MSG_GENERAL },
 };
 
@@ -785,6 +789,12 @@ static boolean vfe_send_bus_overflow_msg(struct msm_vfe_resp *rp,
 	return TRUE;
 }
 
+static boolean vfe_send_sof_msg(struct msm_vfe_resp *rp,
+			struct vfe_message *msg,
+			void *data)
+{
+	return TRUE;
+}
 static boolean vfe_send_camif_error_msg(struct msm_vfe_resp *rp,
 			struct vfe_message *msg,
 			void *data)
