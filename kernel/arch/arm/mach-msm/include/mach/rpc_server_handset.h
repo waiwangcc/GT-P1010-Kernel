@@ -1,4 +1,4 @@
-/* Copyright (c) 2009, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2009-2010, Code Aurora Forum. All rights reserved.
  * Copyright (C) 2010 Sony Ericsson Mobile Communications AB.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -29,6 +29,10 @@
 
 #ifndef __ASM_ARCH_MSM_RPC_SERVER_HANDSET_H
 #define __ASM_ARCH_MSM_RPC_SERVER_HANDSET_H
+
+struct msm_handset_platform_data {
+	const char *hs_name;
+};
 
 void report_headset_status(bool connected);
 
