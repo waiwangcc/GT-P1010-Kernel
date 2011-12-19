@@ -709,6 +709,8 @@ msmsdcc_pio_irq(int irq, void *dev_id)
 	msmsdcc_print_status(host, "irq1-r", status);
 #endif
 
+	spin_lock(&host->lock);
+
 	do {
 		unsigned long flags;
 		unsigned int remain, len;
@@ -769,6 +771,8 @@ msmsdcc_pio_irq(int irq, void *dev_id)
 	} else if (!host->curr.xfer_remain)
 		writel((readl(host->base + MMCIMASK0) & (~(MCI_IRQ_PIO))) | 0,
 				host->base + MMCIMASK0);
+
+	spin_unlock(&host->lock);
 
 	return IRQ_HANDLED;
 }
@@ -944,9 +948,11 @@ msmsdcc_irq(int irq, void *dev_id)
 					 * to be read, and simulate a PIO irq.
 					 */
 					if (readl(host->base + MMCISTATUS) &
-							       MCI_RXDATAAVLBL)
+						       MCI_RXDATAAVLBL) {
+						spin_unlock(&host->lock);
 						msmsdcc_pio_irq(1, host);
-
+						spin_lock(&host->lock);
+					}
 					msmsdcc_stop_data(host);
 					if (!data->error)
 						host->curr.data_xfered =
