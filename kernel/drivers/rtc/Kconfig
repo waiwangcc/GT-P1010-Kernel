@@ -12,7 +12,7 @@ menuconfig RTC_CLASS
 	select RTC_LIB
 	help
 	  Generic RTC class support. If you say yes here, you will
- 	  be allowed to plug one or more RTCs to your system. You will
+	  be allowed to plug one or more RTCs to your system. You will
 	  probably want to enable one or more of the interfaces below.
 
 	  This driver can also be built as a module. If so, the module
@@ -541,6 +541,14 @@ config RTC_SECURE_TIME_SUPPORT
 	help
 	  Say yes here to have additional handle for reading secure time
 	  maintained by ARM9.
+
+config RTC_ASYNC_MODEM_SUPPORT
+	bool "Support for time update on async modem boot"
+        depends on RTC_DRV_MSM && (ARCH_MSM8X60 || ARCH_QSD8X50)
+	default n
+	help
+	 Say yes here to have the system time updated if there is
+	 an asynchronous MODEM boot.
 
 config RTC_DRV_OMAP
 	tristate "TI OMAP1"
