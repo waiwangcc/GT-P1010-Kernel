@@ -123,6 +123,14 @@ config MARIMBA_CODEC
 	 This driver programs Marimba Wideband Codec for input/output of
 	 audio signal.
 
+config TIMPANI_CODEC
+	tristate "Timpani Codec"
+	depends on MARIMBA_CORE
+	default n
+	help
+	 This driver programs Timpani Wideband Codec for input/output of
+	 audio signal.
+
 config MFD_TMIO
 	bool
 	default n
