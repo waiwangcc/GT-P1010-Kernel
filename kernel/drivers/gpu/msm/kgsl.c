@@ -529,7 +529,6 @@ static int kgsl_release(struct inode *inodep, struct file *filep)
 	}
 
 	KGSL_POST_HWACCESS();
-	kfree(private);
 
 	return result;
 }
