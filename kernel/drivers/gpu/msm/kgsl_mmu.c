@@ -443,6 +443,14 @@ int kgsl_mmu_init(struct kgsl_device *device)
 	mmu->config = 0x00000000;
 #endif
 
+	/* MMU not enabled */
+	if ((mmu->config & 0x1) == 0) {
+		KGSL_MEM_VDBG("return %d\n", 0);
+		return 0;
+	}
+
+	mmu->flags |= KGSL_FLAGS_STARTED;
+
 	/* setup MMU and sub-client behavior */
 	kgsl_regwrite(device, mmu_reg[device->id-1].config, mmu->config);
 
@@ -453,12 +461,6 @@ int kgsl_mmu_init(struct kgsl_device *device)
 				GSL_MMU_INT_MASK);
 
 	mmu->flags |= KGSL_FLAGS_INITIALIZED0;
-
-	/* MMU not enabled */
-	if ((mmu->config & 0x1) == 0) {
-		KGSL_MEM_VDBG("return %d\n", 0);
-		return 0;
-	}
 
 	/* idle device */
 	kgsl_idle(device,  KGSL_TIMEOUT_DEFAULT);
@@ -531,7 +533,6 @@ int kgsl_mmu_init(struct kgsl_device *device)
 			kgsl_mmu_close(device);
 			return status;
 		}
-		mmu->flags |= KGSL_FLAGS_STARTED;
 	}
 
 	KGSL_MEM_VDBG("return %d\n", 0);
