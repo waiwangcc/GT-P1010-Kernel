@@ -37,6 +37,7 @@ static int menu_select(struct cpuidle_device *dev)
 {
 	struct menu_device *data = &__get_cpu_var(menu_devices);
 	int latency_req = pm_qos_requirement(PM_QOS_CPU_DMA_LATENCY);
+	unsigned int power_usage = -1;
 	int i;
 
 	/* Special case when user has set very strict latency requirement */
@@ -55,16 +56,26 @@ static int menu_select(struct cpuidle_device *dev)
 				data->current_predicted_us;
 	data->predicted_us /= 100;
 
-	/* find the deepest idle state that satisfies our constraints */
+	/*
+	 * Find the idle state with the lowest power while satisfying
+	 * our constraints.
+	 */
 	for (i = CPUIDLE_DRIVER_STATE_START + 1; i < dev->state_count; i++) {
 		struct cpuidle_state *s = &dev->states[i];
 
+		if (s->flags & CPUIDLE_FLAG_IGNORE)
+			continue;
 		if (s->target_residency > data->expected_us)
-			break;
+			continue;
 		if (s->target_residency > data->predicted_us)
-			break;
+			continue;
 		if (s->exit_latency > latency_req)
-			break;
+			continue;
+
+		if (s->power_usage < power_usage) {
+			power_usage = s->power_usage;
+			data->last_state_idx = i;
+		}
 	}
 
 	data->last_state_idx = i - 1;
