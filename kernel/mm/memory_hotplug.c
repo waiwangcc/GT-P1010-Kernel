@@ -541,7 +541,6 @@ int __ref physical_remove_memory(u64 start, u64 size)
 	res = kzalloc(sizeof(struct resource), GFP_KERNEL);
 	BUG_ON(!res);
 
-	/* call arch's memory hotremove */
 	ret = arch_physical_remove_memory(start, size);
 	if (ret) {
 		kfree(res);
@@ -562,11 +561,19 @@ int __ref physical_remove_memory(u64 start, u64 size)
 }
 EXPORT_SYMBOL_GPL(physical_remove_memory);
 
+int __ref physical_active_memory(u64 start, u64 size)
+{
+	int ret;
+
+	ret = arch_physical_active_memory(start, size);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(physical_active_memory);
+
 int __ref physical_low_power_memory(u64 start, u64 size)
 {
 	int ret;
 
-	/* call arch's memory low power routine */
 	ret = arch_physical_low_power_memory(start, size);
 	return ret;
 }
