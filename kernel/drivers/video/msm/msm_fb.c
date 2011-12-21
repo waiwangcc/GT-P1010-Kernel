@@ -555,7 +555,7 @@ static int msm_fb_blank_sub(int blank_mode, struct fb_info *info,
 	case FB_BLANK_UNBLANK:
 		if (!mfd->panel_power_on) {
 #if !defined(CONFIG_FB_MSM_MDDI_TMD_NT35580)
-			mdelay(100);
+			msleep(16);
 #endif
 			ret = pdata->on(mfd->pdev);
 			if (ret == 0) {
@@ -615,7 +615,7 @@ static int msm_fb_blank_sub(int blank_mode, struct fb_info *info,
 				pdata->panel_ext->backlight_ctrl(false);
 #endif
 
-			mdelay(100);
+			msleep(16);
 			ret = pdata->off(mfd->pdev);
 			if (ret)
 				mfd->panel_power_on = curr_pwr_state;
