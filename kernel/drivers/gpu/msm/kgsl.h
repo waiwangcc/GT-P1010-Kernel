@@ -148,7 +148,6 @@ while (1) { \
 
 #define KGSL_PRE_HWACCESS() \
 while (1) { \
-	mutex_lock(&kgsl_driver.mutex); \
 	if (kgsl_driver.yamato_device.hwaccess_blocked == KGSL_FALSE) { \
 		break; \
 	} \
