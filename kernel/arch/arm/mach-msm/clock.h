@@ -23,6 +23,9 @@
 #include "clock-pcom.h"
 #include "clock-7x30.h"
 
+/* Maximum number of clocks supported. */
+#define MAX_NR_CLKS	300
+
 #define CLKFLAG_INVERT			0x00000001
 #define CLKFLAG_NOINVERT		0x00000002
 #define CLKFLAG_NONEST			0x00000004
@@ -81,7 +84,6 @@ struct clk {
 #define CLK_MIN CLKFLAG_MIN
 #define CLK_MAX CLKFLAG_MAX
 #define CLK_MINMAX (CLK_MIN | CLK_MAX)
-#define NR_CLKS	P_NR_CLKS
 
 enum {
 	PLL_0 = 0,
