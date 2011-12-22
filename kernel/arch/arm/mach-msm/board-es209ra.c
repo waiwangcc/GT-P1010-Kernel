@@ -140,9 +140,6 @@
 #include <asm/setup.h>
 #include "qdsp6/q6audio.h"
 #include <../../../drivers/video/msm/mddi_tmd_nt35580.h>
-#ifdef CONFIG_SEMC_LOW_BATT_SHUTDOWN
-#include <mach/semc_low_batt_shutdown.h>
-#endif /* CONFIG_SEMC_LOW_BATT_SHUTDOWN */
 
 #ifdef CONFIG_SEMC_MSM_PMIC_VIBRATOR
 #include  <linux/semc/msm_pmic_vibrator.h>
@@ -186,7 +183,7 @@
 #define PMEM_KERNEL_EBI1_SIZE	0x28000
 
 #define PMIC_VREG_WLAN_LEVEL	2600
-#define PMIC_VREG_GP6_LEVEL	2850
+#define PMIC_VREG_GP6_LEVEL	2900
 
 #define FPGA_SDCC_STATUS	0x70000280
 
@@ -337,11 +334,6 @@ static struct usb_mass_storage_platform_data mass_storage_pdata = {
         .vendor = "SEMC",
         .product = "Mass Storage",
         .release = 0x0100,
-
-        .cdrom_nluns = 1,
-        .cdrom_vendor = "SEMC",
-        .cdrom_product = "CD-ROM",
-        .cdrom_release = 0x0100,
 };
 
 static struct platform_device usb_mass_storage_device = {
@@ -1897,20 +1889,6 @@ static struct msm_otg_platform_data msm_otg_pdata = {
 
 static struct msm_hsusb_gadget_platform_data msm_gadget_pdata;
 
-#ifdef CONFIG_SEMC_LOW_BATT_SHUTDOWN
-static struct lbs_platform_data lbs_data = {
-	.threshold_vol = 3500,
-};
-
-static struct platform_device lbs_device = {
-	.name	= "Low-Battery Shutdown",
-	.id	= -1,
-	.dev	= {
-		.platform_data = &lbs_data,
-	},
-};
-#endif /* CONFIG_SEMC_LOW_BATT_SHUTDOWN */
-
 #ifdef CONFIG_PMIC_TIME
 static struct platform_device pmic_time_device = {
 	.name = "pmic_time",
@@ -1983,9 +1961,6 @@ static struct platform_device *devices[] __initdata = {
 #ifdef CONFIG_ES209RA_HEADSET
 	&es209ra_audio_jack_device,
 #endif
-#ifdef CONFIG_SEMC_LOW_BATT_SHUTDOWN
-	&lbs_device,
-#endif /* CONFIG_SEMC_LOW_BATT_SHUTDOWN */
 #ifdef CONFIG_CAPTURE_KERNEL
 	&kdump_amsscoredump_device,
 #endif
