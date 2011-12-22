@@ -819,7 +819,7 @@ static struct spi_board_info msm_spi_board_info[] __initdata = {
 		.platform_data  = &es209ra_touch_data,
 		.bus_num	= 0,
 		.chip_select	= 0,
-		.max_speed_hz	= 1000000,
+		.max_speed_hz	= 2000000,
 	}
 };
 
@@ -1387,7 +1387,7 @@ static struct resource kgsl_resources[] = {
        },
 };
 static struct kgsl_platform_data kgsl_pdata = {
-	.high_axi_3d = 128000, /*Max for 8K*/
+	.high_axi_3d = 256000, /*Max for 8K*/
 	.max_grp2d_freq = 0,
 	.min_grp2d_freq = 0,
 	.set_grp2d_async = NULL,
