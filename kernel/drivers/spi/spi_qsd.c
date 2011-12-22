@@ -55,7 +55,7 @@
  *
  */
 /*
- * SPI driver for Qualcomm QSD platforms
+ * SPI driver for Qualcomm MSM platforms
  *
  */
 #include <linux/version.h>
@@ -82,28 +82,56 @@
 #include <linux/remote_spinlock.h>
 #include <linux/pm_qos_params.h>
 
-#define SPI_CONFIG                    0x0000
-#define SPI_IO_CONTROL                0x0004
-#define SPI_IO_MODES                  0x0008
-#define SPI_SW_RESET                  0x000C
-#define SPI_TIME_OUT                  0x0010
-#define SPI_TIME_OUT_CURRENT          0x0014
-#define SPI_MX_OUTPUT_COUNT           0x0018
-#define SPI_MX_OUTPUT_CNT_CURRENT     0x001C
-#define SPI_MX_INPUT_COUNT            0x0020
-#define SPI_MX_INPUT_CNT_CURRENT      0x0024
-#define SPI_MX_READ_COUNT             0x0028
-#define SPI_MX_READ_CNT_CURRENT       0x002C
-#define SPI_OPERATIONAL               0x0030
-#define SPI_ERROR_FLAGS               0x0034
-#define SPI_ERROR_FLAGS_EN            0x0038
-#define SPI_DEASSERT_WAIT             0x003C
-#define SPI_OUTPUT_DEBUG              0x0040
-#define SPI_INPUT_DEBUG               0x0044
+#define SPI_DRV_NAME                  "spi_qsd"
+#if defined(CONFIG_SPI_QSD) || defined(CONFIG_SPI_QSD_MODULE)
+
+#define QSD_REG(x) (x)
+#define QUP_REG(x)
+
 #define SPI_FIFO_WORD_CNT             0x0048
-#define SPI_TEST_CTRL                 0x004C
-#define SPI_OUTPUT_FIFO               0x0100
-#define SPI_INPUT_FIFO                0x0200
+
+#elif defined(CONFIG_SPI_QUP) || defined(CONFIG_SPI_QUP_MODULE)
+
+#define QSD_REG(x)
+#define QUP_REG(x) (x)
+
+#define QUP_CONFIG                    0x0000 /* N & NO_INPUT/NO_OUPUT bits */
+#define QUP_ERROR_FLAGS               0x0308
+#define QUP_ERROR_FLAGS_EN            0x030C
+#define QUP_ERR_MASK                  0x3
+#define SPI_OUTPUT_FIFO_WORD_CNT      0x010C
+#define SPI_INPUT_FIFO_WORD_CNT       0x0214
+#define QUP_MX_WRITE_COUNT            0x0150
+#define QUP_MX_WRITE_CNT_CURRENT      0x0154
+
+#define QUP_CONFIG_SPI_MODE           0x0100
+
+#define GSBI_CTRL_REG                 0x0
+#define GSBI_SPI_CONFIG               0x30
+#endif
+
+#define SPI_CONFIG                    QSD_REG(0x0000) QUP_REG(0x0300)
+#define SPI_IO_CONTROL                QSD_REG(0x0004) QUP_REG(0x0304)
+#define SPI_IO_MODES                  QSD_REG(0x0008) QUP_REG(0x0008)
+#define SPI_SW_RESET                  QSD_REG(0x000C) QUP_REG(0x000C)
+#define SPI_TIME_OUT                  QSD_REG(0x0010) QUP_REG(0x0010)
+#define SPI_TIME_OUT_CURRENT          QSD_REG(0x0014) QUP_REG(0x0014)
+#define SPI_MX_OUTPUT_COUNT           QSD_REG(0x0018) QUP_REG(0x0100)
+#define SPI_MX_OUTPUT_CNT_CURRENT     QSD_REG(0x001C) QUP_REG(0x0104)
+#define SPI_MX_INPUT_COUNT            QSD_REG(0x0020) QUP_REG(0x0200)
+#define SPI_MX_INPUT_CNT_CURRENT      QSD_REG(0x0024) QUP_REG(0x0204)
+#define SPI_MX_READ_COUNT             QSD_REG(0x0028) QUP_REG(0x0208)
+#define SPI_MX_READ_CNT_CURRENT       QSD_REG(0x002C) QUP_REG(0x020C)
+#define SPI_OPERATIONAL               QSD_REG(0x0030) QUP_REG(0x0018)
+#define SPI_ERROR_FLAGS               QSD_REG(0x0034) QUP_REG(0x001C)
+#define SPI_ERROR_FLAGS_EN            QSD_REG(0x0038) QUP_REG(0x0020)
+#define SPI_DEASSERT_WAIT             QSD_REG(0x003C) QUP_REG(0x0310)
+#define SPI_OUTPUT_DEBUG              QSD_REG(0x0040) QUP_REG(0x0108)
+#define SPI_INPUT_DEBUG               QSD_REG(0x0044) QUP_REG(0x0210)
+#define SPI_TEST_CTRL                 QSD_REG(0x004C) QUP_REG(0x0024)
+#define SPI_OUTPUT_FIFO               QSD_REG(0x0100) QUP_REG(0x0110)
+#define SPI_INPUT_FIFO                QSD_REG(0x0200) QUP_REG(0x0218)
+#define SPI_STATE                     QSD_REG(SPI_OPERATIONAL) QUP_REG(0x0004)
 
 /* SPI_CONFIG fields */
 #define SPI_CFG_INPUT_FIRST           0x00000200
@@ -122,15 +150,22 @@
 #define SPI_IO_C_NO_TRI_STATE         0x00000001
 
 /* SPI_IO_MODES fields */
-#define SPI_IO_M_OUTPUT_BIT_SHIFT_EN  0x00004000
-#define SPI_IO_M_PACK_EN              0x00002000
-#define SPI_IO_M_UNPACK_EN            0x00001000
-#define SPI_IO_M_INPUT_MODE           0x00000C00
-#define SPI_IO_M_OUTPUT_MODE          0x00000300
-#define SPI_IO_M_INPUT_FIFO_SIZE      0x000000C0
-#define SPI_IO_M_INPUT_BLOCK_SIZE     0x00000030
-#define SPI_IO_M_OUTPUT_FIFO_SIZE     0x0000000C
-#define SPI_IO_M_OUTPUT_BLOCK_SIZE    0x00000003
+#define SPI_IO_M_OUTPUT_BIT_SHIFT_EN  QSD_REG(0x00004000) QUP_REG(0x00010000)
+#define SPI_IO_M_PACK_EN              QSD_REG(0x00002000) QUP_REG(0x00008000)
+#define SPI_IO_M_UNPACK_EN            QSD_REG(0x00001000) QUP_REG(0x00004000)
+#define SPI_IO_M_INPUT_MODE           QSD_REG(0x00000C00) QUP_REG(0x00003000)
+#define SPI_IO_M_OUTPUT_MODE          QSD_REG(0x00000300) QUP_REG(0x00000C00)
+#define SPI_IO_M_INPUT_FIFO_SIZE      QSD_REG(0x000000C0) QUP_REG(0x00000380)
+#define SPI_IO_M_INPUT_BLOCK_SIZE     QSD_REG(0x00000030) QUP_REG(0x00000060)
+#define SPI_IO_M_OUTPUT_FIFO_SIZE     QSD_REG(0x0000000C) QUP_REG(0x0000001C)
+#define SPI_IO_M_OUTPUT_BLOCK_SIZE    QSD_REG(0x00000003) QUP_REG(0x00000003)
+
+#define INPUT_BLOCK_SZ_SHIFT          QSD_REG(4)          QUP_REG(5)
+#define INPUT_FIFO_SZ_SHIFT           QSD_REG(6)          QUP_REG(7)
+#define OUTPUT_BLOCK_SZ_SHIFT         QSD_REG(0)          QUP_REG(0)
+#define OUTPUT_FIFO_SZ_SHIFT          QSD_REG(2)          QUP_REG(2)
+#define OUTPUT_MODE_SHIFT             QSD_REG(8)          QUP_REG(10)
+#define INPUT_MODE_SHIFT              QSD_REG(10)         QUP_REG(12)
 
 /* SPI_OPERATIONAL fields */
 #define SPI_OP_MAX_INPUT_DONE_FLAG    0x00000800
@@ -143,12 +178,15 @@
 #define SPI_OP_OP_FIFO_NOT_EMPTY      0x00000010
 #define SPI_OP_STATE_VALID            0x00000004
 #define SPI_OP_STATE                  0x00000003
-#define SPI_OP_STATE_RESET            0x00000000
-#define SPI_OP_STATE_RUN              0x00000001
-#define SPI_OP_STATE_PAUSE            0x00000003
+
+#define SPI_OP_STATE_CLEAR_BITS       0x2
+enum msm_spi_state {
+	SPI_OP_STATE_RESET = 0x00000000,
+	SPI_OP_STATE_RUN   = 0x00000001,
+	SPI_OP_STATE_PAUSE = 0x00000003,
+};
 
 /* SPI_ERROR_FLAGS fields */
-#define SPI_ERR_TIME_OUT_ERR          0x00000040
 #define SPI_ERR_OUTPUT_OVER_RUN_ERR   0x00000020
 #define SPI_ERR_INPUT_UNDER_RUN_ERR   0x00000010
 #define SPI_ERR_OUTPUT_UNDER_RUN_ERR  0x00000008
@@ -157,15 +195,17 @@
 #define SPI_ERR_CLK_UNDER_RUN_ERR     0x00000001
 #define SPI_ERR_MASK                  0x0000007F
 
-/* We don't allow transactions larger than 4K-64 */
-#define SPI_MAX_TRANSFERS             0x000FC0
+/* We don't allow transactions larger than 4K-64 or 64K-64 due to
+   mx_input/output_cnt register size */
+#define SPI_MAX_TRANSFERS             QSD_REG(0xFC0) QUP_REG(0xFC0)
 #define SPI_MAX_LEN                   (SPI_MAX_TRANSFERS * dd->bytes_per_word)
-#define SPI_MAX_TIMEOUT               0x00010000
-#define SPI_MIN_TRANS_TIME            50
 
 #define SPI_NUM_CHIPSELECTS           4
-#define SPI_QSD_NAME                  "spi_qsd"
+#define SPI_SUPPORTED_MODES  (SPI_CPOL | SPI_CPHA | SPI_CS_HIGH | SPI_LOOP)
 
+#define SPI_DELAY_THRESHOLD           1
+/* Default timeout is 10 milliseconds */
+#define SPI_DEFAULT_TIMEOUT           10
 /* 250 microseconds */
 #define SPI_TRYLOCK_DELAY             250
 
@@ -191,8 +231,8 @@ struct spi_dmov_cmd {
 };
 
 MODULE_LICENSE("GPL v2");
-MODULE_VERSION("0.2");
-MODULE_ALIAS("platform:spi_qsd");
+MODULE_VERSION("0.3");
+MODULE_ALIAS("platform:"SPI_DRV_NAME);
 
 #ifdef CONFIG_DEBUG_FS
 /* Used to create debugfs entries */
@@ -219,39 +259,58 @@ static const struct {
 	{"deassert_wait",         S_IRUGO | S_IWUSR, SPI_DEASSERT_WAIT},
 	{"output_debug",          S_IRUGO,           SPI_OUTPUT_DEBUG},
 	{"input_debug",           S_IRUGO,           SPI_INPUT_DEBUG},
-	{"fifo_word_cnt",         S_IRUGO,           SPI_FIFO_WORD_CNT},
 	{"test_ctrl",             S_IRUGO | S_IWUSR, SPI_TEST_CTRL},
 	{"output_fifo",                     S_IWUSR, SPI_OUTPUT_FIFO},
 	{"input_fifo" ,           S_IRUSR,           SPI_INPUT_FIFO},
+	{"spi_state",             S_IRUGO | S_IWUSR, SPI_STATE},
+#if defined(CONFIG_SPI_QSD) || defined(CONFIG_SPI_QSD_MODULE)
+	{"fifo_word_cnt",         S_IRUGO,           SPI_FIFO_WORD_CNT},
+#elif defined(CONFIG_SPI_QUP) || defined(CONFIG_SPI_QUP_MODULE)
+	{"qup_config",            S_IRUGO | S_IWUSR, QUP_CONFIG},
+	{"qup_error_flags",       S_IRUGO | S_IWUSR, QUP_ERROR_FLAGS},
+	{"qup_error_flags_en",    S_IRUGO | S_IWUSR, QUP_ERROR_FLAGS_EN},
+	{"mx_write_cnt",          S_IRUGO | S_IWUSR, QUP_MX_WRITE_COUNT},
+	{"mx_write_cnt_current",  S_IRUGO,           QUP_MX_WRITE_CNT_CURRENT},
+	{"output_fifo_word_cnt",  S_IRUGO,           SPI_OUTPUT_FIFO_WORD_CNT},
+	{"input_fifo_word_cnt",   S_IRUGO,           SPI_INPUT_FIFO_WORD_CNT},
+#endif
 };
 #endif
 
 struct msm_spi {
 	u8                      *read_buf;
 	const u8                *write_buf;
-	void __iomem		*base;
+	void __iomem            *base;
+	void __iomem            *gsbi_base;
 	struct device           *dev;
 	spinlock_t               queue_lock;
+	struct mutex             core_lock;
 	struct list_head         queue;
-	struct workqueue_struct	*workqueue;
+	struct workqueue_struct *workqueue;
 	struct work_struct       work_data;
 	struct spi_message      *cur_msg;
 	struct spi_transfer     *cur_transfer;
 	struct completion        transfer_complete;
 	struct clk              *clk;
 	struct clk              *pclk;
-	int                      max_clock_speed;
 	unsigned long            mem_phys_addr;
 	size_t                   mem_size;
+	unsigned long            gsbi_mem_phys_addr;
+	size_t                   gsbi_mem_size;
+	int                      input_fifo_size;
+	int                      output_fifo_size;
 	u32                      rx_bytes_remaining;
 	u32                      tx_bytes_remaining;
 	u32                      clock_speed;
 	u32                      irq_in;
+#if defined(CONFIG_SPI_QSD) || defined(CONFIG_SPI_QSD_MODULE)
 	u32                      irq_out;
 	u32                      irq_err;
+#endif
 	int                      bytes_per_word;
 	bool                     suspended;
-	bool                     transfer_in_progress;
+	bool                     transfer_pending;
+	wait_queue_head_t        continue_suspend;
 	/* DMA data */
 	enum msm_spi_mode        mode;
 	bool                     use_dma;
@@ -267,7 +326,8 @@ struct msm_spi {
 	dma_addr_t               rx_dmov_cmd_dma;
 	struct msm_dmov_cmd      tx_hdr;
 	struct msm_dmov_cmd      rx_hdr;
-	int                      block_size;
+	int                      input_block_size;
+	int                      output_block_size;
 	int                      burst_size;
 	atomic_t                 rx_irq_called;
 	/* Used to pad messages unaligned to block size */
@@ -277,20 +337,267 @@ struct msm_spi {
 	dma_addr_t               rx_padding_dma;
 	u32                      unaligned_len;
 	/* DMA statistics */
-	u32                      stat_dmov_err;
-	u32                      stat_rx;
-	u32                      stat_tx;
+	int                      stat_dmov_tx_err;
+	int                      stat_dmov_rx_err;
+	int                      stat_rx;
+	int                      stat_dmov_rx;
+	int                      stat_tx;
+	int                      stat_dmov_tx;
 #ifdef CONFIG_DEBUG_FS
 	struct dentry *dent_spi;
 	struct dentry *debugfs_spi_regs[ARRAY_SIZE(debugfs_spi_regs)];
 #endif
+	struct msm_spi_platform_data *pdata; /* Platform data */
 	/* Remote Spinlock Data */
 	bool                     use_rlock;
 	remote_mutex_t           r_lock;
 	uint32_t                 pm_lat;
 };
 
-static int input_fifo_size;
+/* Forward declaration */
+static irqreturn_t msm_spi_input_irq(int irq, void *dev_id);
+static irqreturn_t msm_spi_output_irq(int irq, void *dev_id);
+static irqreturn_t msm_spi_error_irq(int irq, void *dev_id);
+static inline int msm_spi_set_state(struct msm_spi *dd,
+				    enum msm_spi_state state);
+static void msm_spi_write_word_to_fifo(struct msm_spi *dd);
+static inline void msm_spi_write_rmn_to_fifo(struct msm_spi *dd);
+
+#if defined(CONFIG_SPI_QSD) || defined(CONFIG_SPI_QSD_MODULE)
+/* Interrupt Handling */
+static inline int msm_spi_get_irq_data(struct msm_spi *dd,
+				       struct platform_device *pdev)
+{
+	dd->irq_in  = platform_get_irq_byname(pdev, "spi_irq_in");
+	dd->irq_out = platform_get_irq_byname(pdev, "spi_irq_out");
+	dd->irq_err = platform_get_irq_byname(pdev, "spi_irq_err");
+	if ((dd->irq_in < 0) || (dd->irq_out < 0) || (dd->irq_err < 0))
+		return -1;
+	return 0;
+}
+
+static inline int msm_spi_get_gsbi_resource(struct msm_spi *dd,
+					    struct platform_device *pdev)
+{
+	return 0;
+}
+
+static inline int msm_spi_request_gsbi(struct msm_spi *dd) { return 0; }
+static inline void msm_spi_release_gsbi(struct msm_spi *dd) {}
+static inline void msm_spi_init_gsbi(struct msm_spi *dd) {}
+
+static inline void msm_spi_disable_irqs(struct msm_spi *dd)
+{
+	disable_irq(dd->irq_in);
+	disable_irq(dd->irq_out);
+	disable_irq(dd->irq_err);
+}
+
+static inline void msm_spi_enable_irqs(struct msm_spi *dd)
+{
+	enable_irq(dd->irq_in);
+	enable_irq(dd->irq_out);
+	enable_irq(dd->irq_err);
+}
+
+static inline int msm_spi_request_irq(struct msm_spi *dd,
+				      const char *name,
+				      struct spi_master *master)
+{
+	int rc;
+	rc = request_irq(dd->irq_in, msm_spi_input_irq, IRQF_TRIGGER_RISING,
+			   name, dd);
+	if (rc)
+		goto error_irq1;
+	rc = request_irq(dd->irq_out, msm_spi_output_irq, IRQF_TRIGGER_RISING,
+			   name, dd);
+	if (rc)
+		goto error_irq2;
+	rc = request_irq(dd->irq_err, msm_spi_error_irq, IRQF_TRIGGER_RISING,
+			   name, master);
+	if (rc)
+		goto error_irq3;
+	return 0;
+
+error_irq3:
+	free_irq(dd->irq_out, dd);
+error_irq2:
+	free_irq(dd->irq_in, dd);
+error_irq1:
+	return rc;
+}
+
+static inline void msm_spi_free_irq(struct msm_spi *dd,
+				    struct spi_master *master)
+{
+	free_irq(dd->irq_err, master);
+	free_irq(dd->irq_out, dd);
+	free_irq(dd->irq_in, dd);
+}
+
+static inline void msm_spi_get_clk_err(struct msm_spi *dd, u32 *spi_err) {}
+static inline void msm_spi_ack_clk_err(struct msm_spi *dd) {}
+static inline void msm_spi_set_qup_config(struct msm_spi *dd, int bpw) {}
+
+static inline int msm_spi_prepare_for_write(struct msm_spi *dd) { return 0; }
+static inline void msm_spi_start_write(struct msm_spi *dd, u32 read_count)
+{
+	msm_spi_write_word_to_fifo(dd);
+}
+static inline void msm_spi_set_write_count(struct msm_spi *dd, int val) {}
+
+#elif defined(CONFIG_SPI_QUP) || defined(CONFIG_SPI_QUP_MODULE)
+
+/* Interrupt Handling */
+/* In QUP the same interrupt line is used for intput, output and error*/
+static inline int msm_spi_get_irq_data(struct msm_spi *dd,
+				       struct platform_device *pdev)
+{
+	dd->irq_in  = platform_get_irq_byname(pdev, "spi_irq_in");
+	if (dd->irq_in < 0)
+		return -1;
+	return 0;
+}
+
+static inline int msm_spi_get_gsbi_resource(struct msm_spi *dd,
+				       struct platform_device *pdev)
+{
+	struct resource *resource;
+
+	resource  = platform_get_resource_byname(pdev,
+						 IORESOURCE_MEM, "gsbi_base");
+	if (!resource)
+		return -ENXIO;
+	dd->gsbi_mem_phys_addr = resource->start;
+	dd->gsbi_mem_size = resource_size(resource);
+
+	return 0;
+}
+
+static inline void msm_spi_release_gsbi(struct msm_spi *dd)
+{
+	iounmap(dd->gsbi_base);
+	release_mem_region(dd->gsbi_mem_phys_addr, dd->gsbi_mem_size);
+}
+
+static inline int msm_spi_request_gsbi(struct msm_spi *dd)
+{
+	if (!request_mem_region(dd->gsbi_mem_phys_addr, dd->gsbi_mem_size,
+				SPI_DRV_NAME)) {
+		return -ENXIO;
+	}
+	dd->gsbi_base = ioremap(dd->gsbi_mem_phys_addr, dd->gsbi_mem_size);
+	if (!dd->gsbi_base) {
+		release_mem_region(dd->gsbi_mem_phys_addr, dd->gsbi_mem_size);
+		return -ENXIO;
+	}
+	return 0;
+}
+
+static inline void msm_spi_init_gsbi(struct msm_spi *dd)
+{
+	/* Set GSBI to SPI mode, and CRCI_MUX_CTRL to SPI CRCI ports */
+	writel(GSBI_SPI_CONFIG, dd->gsbi_base + GSBI_CTRL_REG);
+}
+
+/* Figure which irq occured and call the relevant functions */
+static irqreturn_t msm_spi_qup_irq(int irq, void *dev_id)
+{
+	u32 op, ret = IRQ_NONE;
+	struct msm_spi *dd = dev_id;
+
+	if (readl(dd->base + SPI_ERROR_FLAGS) ||
+	    readl(dd->base + QUP_ERROR_FLAGS)) {
+		struct spi_master *master = dev_get_drvdata(dd->dev);
+		ret |= msm_spi_error_irq(irq, master);
+	}
+
+	op = readl(dd->base + SPI_OPERATIONAL);
+	if (op & SPI_OP_INPUT_SERVICE_FLAG) {
+		writel(SPI_OP_INPUT_SERVICE_FLAG, dd->base + SPI_OPERATIONAL);
+		ret |= msm_spi_input_irq(irq, dev_id);
+	}
+
+	if (op & SPI_OP_OUTPUT_SERVICE_FLAG) {
+		writel(SPI_OP_OUTPUT_SERVICE_FLAG, dd->base + SPI_OPERATIONAL);
+		ret |= msm_spi_output_irq(irq, dev_id);
+	}
+
+	return ret;
+}
+
+static inline int msm_spi_request_irq(struct msm_spi *dd,
+				      const char *name,
+				      struct spi_master *master)
+{
+	return request_irq(dd->irq_in, msm_spi_qup_irq, IRQF_TRIGGER_HIGH,
+			   name, dd);
+}
+
+static inline void msm_spi_free_irq(struct msm_spi *dd,
+				    struct spi_master *master)
+{
+	free_irq(dd->irq_in, dd);
+}
+
+static inline void msm_spi_free_output_irq(struct msm_spi *dd) { }
+static inline void msm_spi_free_error_irq(struct msm_spi *dd,
+					  struct spi_master *master) { }
+
+static inline void msm_spi_disable_irqs(struct msm_spi *dd)
+{
+	disable_irq(dd->irq_in);
+}
+
+static inline void msm_spi_enable_irqs(struct msm_spi *dd)
+{
+	enable_irq(dd->irq_in);
+}
+
+static inline void msm_spi_get_clk_err(struct msm_spi *dd, u32 *spi_err)
+{
+	*spi_err = readl(dd->base + QUP_ERROR_FLAGS);
+}
+
+static inline void msm_spi_ack_clk_err(struct msm_spi *dd)
+{
+	writel(QUP_ERR_MASK, dd->base + QUP_ERROR_FLAGS);
+}
+
+static inline void msm_spi_add_configs(struct msm_spi *dd, u32 *config, int n);
+
+/* QUP has no_input, no_output, and N bits at QUP_CONFIG */
+static inline void msm_spi_set_qup_config(struct msm_spi *dd, int bpw)
+{
+	u32 qup_config = readl(dd->base + QUP_CONFIG);
+
+	msm_spi_add_configs(dd, &qup_config, bpw-1);
+	writel(qup_config | QUP_CONFIG_SPI_MODE, dd->base + QUP_CONFIG);
+}
+
+static inline int msm_spi_prepare_for_write(struct msm_spi *dd)
+{
+	if (msm_spi_set_state(dd, SPI_OP_STATE_RUN))
+		return -1;
+	if (msm_spi_set_state(dd, SPI_OP_STATE_PAUSE))
+		return -1;
+	return 0;
+}
+
+static inline void msm_spi_start_write(struct msm_spi *dd, u32 read_count)
+{
+	if (read_count <= dd->input_fifo_size)
+		msm_spi_write_rmn_to_fifo(dd);
+	else
+		msm_spi_write_word_to_fifo(dd);
+}
+
+static inline void msm_spi_set_write_count(struct msm_spi *dd, int val)
+{
+	writel(val, dd->base + QUP_MX_WRITE_COUNT);
+}
+
+#endif
 
 static void msm_spi_clock_set(struct msm_spi *dd, int speed)
 {
@@ -301,55 +608,81 @@ static void msm_spi_clock_set(struct msm_spi *dd, int speed)
 		dd->clock_speed = speed;
 }
 
-/* Assumption: input_fifo=output_fifo */
+static int msm_spi_calculate_size(int *fifo_size,
+				  int *block_size,
+				  int block,
+				  int mult)
+{
+	int words;
+
+	switch (block) {
+	case 0:
+		words = 1; /* 4 bytes */
+		break;
+	case 1:
+		words = 4; /* 16 bytes */
+		break;
+	case 2:
+		words = 8; /* 32 bytes */
+		break;
+	default:
+		return -1;
+	}
+	switch (mult) {
+	case 0:
+		*fifo_size = words * 2;
+		break;
+	case 1:
+		*fifo_size = words * 4;
+		break;
+	case 2:
+		*fifo_size = words * 8;
+		break;
+	case 3:
+		*fifo_size = words * 16;
+	default:
+		return -1;
+	}
+	*block_size = words * sizeof(u32); /* in bytes */
+	return 0;
+}
+
 static void __init msm_spi_calculate_fifo_size(struct msm_spi *dd)
 {
 	u32 spi_iom;
 	int block;
 	int mult;
-	int words;
 
 	spi_iom = readl(dd->base + SPI_IO_MODES);
-	block = (spi_iom & SPI_IO_M_INPUT_BLOCK_SIZE) >> 4;
-	mult = (spi_iom & SPI_IO_M_INPUT_FIFO_SIZE) >> 6;
-	switch (block) {
-	case 0:
-		words = 1;
-		break;
-	case 1:
-		words = 4;
-		break;
-	case 2:
-		words = 8;
-		break;
-	default:
-		goto fifo_size_err;
-	}
-	switch (mult) {
-	case 0:
-		input_fifo_size = words * 2;
-		break;
-	case 1:
-		input_fifo_size = words * 4;
-		break;
-	case 2:
-		input_fifo_size = words * 8;
-		break;
-	default:
+
+	block = (spi_iom & SPI_IO_M_INPUT_BLOCK_SIZE) >> INPUT_BLOCK_SZ_SHIFT;
+	mult = (spi_iom & SPI_IO_M_INPUT_FIFO_SIZE) >> INPUT_FIFO_SZ_SHIFT;
+	if (msm_spi_calculate_size(&dd->input_fifo_size, &dd->input_block_size,
+				   block, mult)) {
 		goto fifo_size_err;
 	}
 
-	/* we can't use dma with 8 bytes of fifo since dm burst size is 16 */
-	if (input_fifo_size*sizeof(u32) < DM_BURST_SIZE)
-		dd->use_dma = 0;
-	if (dd->use_dma) {
-		dd->block_size = words*sizeof(u32); /* in bytes */
-		dd->burst_size = max(dd->block_size, DM_BURST_SIZE);
+	block = (spi_iom & SPI_IO_M_OUTPUT_BLOCK_SIZE) >> OUTPUT_BLOCK_SZ_SHIFT;
+	mult = (spi_iom & SPI_IO_M_OUTPUT_FIFO_SIZE) >> OUTPUT_FIFO_SZ_SHIFT;
+	if (msm_spi_calculate_size(&dd->output_fifo_size,
+				   &dd->output_block_size, block, mult)) {
+		goto fifo_size_err;
 	}
+	/* DM mode is not available for this block size */
+	if (dd->input_block_size == 4 || dd->output_block_size == 4)
+		dd->use_dma = 0;
+
+	/* DM mode is currently unsupported for different block sizes */
+	if (dd->input_block_size != dd->output_block_size)
+		dd->use_dma = 0;
+
+	if (dd->use_dma)
+		dd->burst_size = max(dd->input_block_size, DM_BURST_SIZE);
 
 	return;
 
 fifo_size_err:
+	dd->use_dma = 0;
 	printk(KERN_WARNING "%s: invalid FIFO size, SPI_IO_MODES=0x%x\n",
 	       __func__, spi_iom);
 	return;
@@ -383,11 +716,115 @@ static void msm_spi_read_word_from_fifo(struct msm_spi *dd)
 	}
 }
 
+static inline bool msm_spi_is_valid_state(struct msm_spi *dd)
+{
+	u32 spi_op = readl(dd->base + SPI_STATE);
+
+	return spi_op & SPI_OP_STATE_VALID;
+}
+
+static inline int msm_spi_wait_valid(struct msm_spi *dd)
+{
+	unsigned long delay = 0;
+	unsigned long timeout = 0;
+
+	if (dd->clock_speed == 0)
+		return -EINVAL;
+	/*
+	 * Based on the SPI clock speed, sufficient time
+	 * should be given for the SPI state transition
+	 * to occur
+	 */
+	delay = (10 * USEC_PER_SEC) / dd->clock_speed;
+	/*
+	 * For small delay values, the default timeout would
+	 * be one jiffy
+	 */
+	if (delay < SPI_DELAY_THRESHOLD)
+		delay = SPI_DELAY_THRESHOLD;
+	timeout = jiffies + msecs_to_jiffies(delay * SPI_DEFAULT_TIMEOUT);
+	while (!msm_spi_is_valid_state(dd)) {
+		if (time_after(jiffies, timeout)) {
+			dd->cur_msg->status = -EIO;
+			dev_err(dd->dev, "%s: SPI operational state not valid"
+				"\n", __func__);
+			return -1;
+		}
+		/*
+		 * For smaller values of delay, context switch time
+		 * would negate the usage of usleep
+		 */
+		if (delay > 20)
+			usleep(delay);
+		else if (delay)
+			udelay(delay);
+	}
+	return 0;
+}
+
+static inline int msm_spi_set_state(struct msm_spi *dd,
+				    enum msm_spi_state state)
+{
+	enum msm_spi_state cur_state;
+	if (msm_spi_wait_valid(dd))
+		return -1;
+	cur_state = readl(dd->base + SPI_STATE);
+	/* Per spec:
+	   For PAUSE_STATE to RESET_STATE, two writes of (10) are required */
+	if (((cur_state & SPI_OP_STATE) == SPI_OP_STATE_PAUSE) &&
+			(state == SPI_OP_STATE_RESET)) {
+		writel(SPI_OP_STATE_CLEAR_BITS, dd->base + SPI_STATE);
+		writel(SPI_OP_STATE_CLEAR_BITS, dd->base + SPI_STATE);
+	} else {
+		writel((cur_state & ~SPI_OP_STATE) | state,
+		       dd->base + SPI_STATE);
+	}
+	if (msm_spi_wait_valid(dd))
+		return -1;
+
+	return 0;
+}
+
+static inline void msm_spi_add_configs(struct msm_spi *dd, u32 *config, int n)
+{
+	*config &= ~(SPI_NO_INPUT|SPI_NO_OUTPUT);
+
+	if (n != (*config & SPI_CFG_N))
+		*config = (*config & ~SPI_CFG_N) | n;
+
+	if (dd->mode == SPI_DMOV_MODE) {
+		if (dd->read_buf == NULL)
+			*config |= SPI_NO_INPUT;
+		if (dd->write_buf == NULL)
+			*config |= SPI_NO_OUTPUT;
+	}
+}
+
+static void msm_spi_set_config(struct msm_spi *dd, int bpw)
+{
+	u32 spi_config;
+
+	spi_config = readl(dd->base + SPI_CONFIG);
+
+	if (dd->cur_msg->spi->mode & SPI_CPHA)
+		spi_config &= ~SPI_CFG_INPUT_FIRST;
+	else
+		spi_config |= SPI_CFG_INPUT_FIRST;
+	if (dd->cur_msg->spi->mode & SPI_LOOP)
+		spi_config |= SPI_CFG_LOOPBACK;
+	else
+		spi_config &= ~SPI_CFG_LOOPBACK;
+
+	msm_spi_add_configs(dd, &spi_config, bpw-1);
+	writel(spi_config, dd->base + SPI_CONFIG);
+	msm_spi_set_qup_config(dd, bpw);
+}
+
 static void msm_spi_setup_dm_transfer(struct msm_spi *dd)
 {
 	dmov_box *box;
 	int bytes_to_send, num_rows, bytes_sent;
-	u32 num_transfers, timeout;
+	u32 num_transfers;
 
 	atomic_set(&dd->rx_irq_called, 0);
 	bytes_sent = dd->cur_transfer->len - dd->tx_bytes_remaining;
@@ -396,9 +833,6 @@ static void msm_spi_setup_dm_transfer(struct msm_spi *dd)
 			  SPI_MAX_LEN : dd->tx_bytes_remaining;
 	num_transfers = DIV_ROUND_UP(bytes_to_send, dd->bytes_per_word);
 	dd->unaligned_len = bytes_to_send % dd->burst_size;
-	/* We multiply by 8bitsinbyte and multiply by 1.5 for safety */
-	timeout = bytes_to_send * 12 > SPI_MAX_TIMEOUT ?
-			0 : roundup(bytes_to_send * 12, SPI_MIN_TRANS_TIME);
 	num_rows = bytes_to_send / dd->burst_size;
 
 	dd->mode = SPI_DMOV_MODE;
@@ -460,8 +894,6 @@ static void msm_spi_setup_dm_transfer(struct msm_spi *dd)
 		writel(num_transfers, dd->base + SPI_MX_OUTPUT_COUNT);
 	if (dd->read_buf)
 		writel(num_transfers, dd->base + SPI_MX_INPUT_COUNT);
-	/* Write timeout */
-	writel(timeout, dd->base + SPI_TIME_OUT);
 }
 
 static void msm_spi_enqueue_dm_commands(struct msm_spi *dd)
@@ -491,15 +923,12 @@ static int msm_spi_dm_send_next(struct msm_spi *dd)
 	/* We need to send more chunks, if we sent max last time */
 	if (dd->tx_bytes_remaining > SPI_MAX_LEN) {
 		dd->tx_bytes_remaining -= SPI_MAX_LEN;
-		writel((readl(dd->base + SPI_OPERATIONAL)
-			& ~SPI_OP_STATE) | SPI_OP_STATE_PAUSE,
-			dd->base + SPI_OPERATIONAL);
+		if (msm_spi_set_state(dd, SPI_OP_STATE_RESET))
+			return 0;
 		msm_spi_setup_dm_transfer(dd);
 		msm_spi_enqueue_dm_commands(dd);
-
-		writel((readl(dd->base + SPI_OPERATIONAL)
-			& ~SPI_OP_STATE) | SPI_OP_STATE_RUN,
-			dd->base + SPI_OPERATIONAL);
+		if (msm_spi_set_state(dd, SPI_OP_STATE_RUN))
+			return 0;
 		return 1;
 	}
 
@@ -510,7 +939,6 @@ static inline void msm_spi_ack_transfer(struct msm_spi *dd)
 {
 	writel(SPI_OP_MAX_INPUT_DONE_FLAG | SPI_OP_MAX_OUTPUT_DONE_FLAG,
 	       dd->base + SPI_OPERATIONAL);
-	writel(0, dd->base + SPI_TIME_OUT);
 }
 
 static irqreturn_t msm_spi_input_irq(int irq, void *dev_id)
@@ -537,13 +965,15 @@ static irqreturn_t msm_spi_input_irq(int irq, void *dev_id)
 		return IRQ_NONE;
 	}
 
-	/* fifo mode */
-	while ((readl(dd->base + SPI_OPERATIONAL) & SPI_OP_IP_FIFO_NOT_EMPTY) &&
-	       (dd->rx_bytes_remaining > 0)) {
-		msm_spi_read_word_from_fifo(dd);
+	if (dd->mode == SPI_FIFO_MODE) {
+		while ((readl(dd->base + SPI_OPERATIONAL) &
+			SPI_OP_IP_FIFO_NOT_EMPTY) &&
+			(dd->rx_bytes_remaining > 0)) {
+			msm_spi_read_word_from_fifo(dd);
+		}
+		if (dd->rx_bytes_remaining == 0)
+			complete(&dd->transfer_complete);
 	}
-	if (dd->rx_bytes_remaining == 0)
-		complete(&dd->transfer_complete);
 
 	return IRQ_HANDLED;
 }
@@ -570,10 +1000,20 @@ static void msm_spi_write_word_to_fifo(struct msm_spi *dd)
 	writel(word, dd->base + SPI_OUTPUT_FIFO);
 }
 
+static inline void msm_spi_write_rmn_to_fifo(struct msm_spi *dd)
+{
+	int count = 0;
+
+	while ((dd->tx_bytes_remaining > 0) && (count < dd->input_fifo_size) &&
+	       !(readl(dd->base + SPI_OPERATIONAL) & SPI_OP_OUTPUT_FIFO_FULL)) {
+		msm_spi_write_word_to_fifo(dd);
+		count++;
+	}
+}
+
 static irqreturn_t msm_spi_output_irq(int irq, void *dev_id)
 {
 	struct msm_spi	       *dd = dev_id;
-	int                     count = 0;
 
 	dd->stat_tx++;
 
@@ -593,14 +1033,8 @@ static irqreturn_t msm_spi_output_irq(int irq, void *dev_id)
 	}
 
 	/* Output FIFO is empty. Transmit any outstanding write data. */
-	/* There could be one word in input FIFO, so don't send more  */
-	/* than input_fifo_size - 1 more words.                       */
-	while ((dd->tx_bytes_remaining > 0) &&
-	       (count < input_fifo_size - 1) &&
-	       !(readl(dd->base + SPI_OPERATIONAL) & SPI_OP_OUTPUT_FIFO_FULL)) {
-		msm_spi_write_word_to_fifo(dd);
-		count++;
-	}
+	if (dd->mode == SPI_FIFO_MODE)
+		msm_spi_write_rmn_to_fifo(dd);
 
 	return IRQ_HANDLED;
 }
@@ -612,11 +1046,6 @@ static irqreturn_t msm_spi_error_irq(int irq, void *dev_id)
 	u32                      spi_err;
 
 	spi_err = readl(dd->base + SPI_ERROR_FLAGS);
-	if (spi_err & SPI_ERR_TIME_OUT_ERR) {
-		dev_warn(master->dev.parent, "SPI timeout error\n");
-		msm_dmov_flush(dd->tx_dma_chan);
-		msm_dmov_flush(dd->rx_dma_chan);
-	}
 	if (spi_err & SPI_ERR_OUTPUT_OVER_RUN_ERR)
 		dev_warn(master->dev.parent, "SPI output overrun error\n");
 	if (spi_err & SPI_ERR_INPUT_UNDER_RUN_ERR)
@@ -625,11 +1054,13 @@ static irqreturn_t msm_spi_error_irq(int irq, void *dev_id)
 		dev_warn(master->dev.parent, "SPI output underrun error\n");
 	if (spi_err & SPI_ERR_INPUT_OVER_RUN_ERR)
 		dev_warn(master->dev.parent, "SPI input overrun error\n");
+	msm_spi_get_clk_err(dd, &spi_err);
 	if (spi_err & SPI_ERR_CLK_OVER_RUN_ERR)
 		dev_warn(master->dev.parent, "SPI clock overrun error\n");
 	if (spi_err & SPI_ERR_CLK_UNDER_RUN_ERR)
 		dev_warn(master->dev.parent, "SPI clock underrun error\n");
 	writel(SPI_ERR_MASK, dd->base + SPI_ERROR_FLAGS);
+	msm_spi_ack_clk_err(dd);
 	return IRQ_HANDLED;
 }
 
@@ -666,9 +1097,7 @@ static void msm_spi_unmap_dma_buffers(struct msm_spi *dd)
  * Start using DM if:
  * 1. Transfer is longer than 3*block size.
  * 2. Buffers should be aligned to cache line.
- * 3. If Transfer is bigger than max_output_count, we accept only aligned to
- *    block size transfers.
- */
+  */
 static inline int msm_use_dm(struct msm_spi *dd, struct spi_transfer *tr)
 {
 	u32 cache_line = dma_get_cache_alignment();
@@ -676,7 +1105,7 @@ static inline int msm_use_dm(struct msm_spi *dd, struct spi_transfer *tr)
 	if (!dd->use_dma)
 		return 0;
 
-	if (tr->len < 3*dd->block_size)
+	if (tr->len < 3*dd->input_block_size)
 		return 0;
 
 	if (tr->tx_buf) {
@@ -693,7 +1122,6 @@ static inline int msm_use_dm(struct msm_spi *dd, struct spi_transfer *tr)
 static void msm_spi_process_transfer(struct msm_spi *dd)
 {
 	u8  bpw;
-	u32 spi_config;
 	u32 spi_ioc;
 	u32 spi_iom;
 	u32 spi_ioc_orig;
@@ -733,18 +1161,21 @@ static void msm_spi_process_transfer(struct msm_spi *dd)
 		   larger than fifo size READ COUNT must be disabled.
 		   For those transactions we usually move to Data Mover mode.
 		*/
-		if (read_count <= input_fifo_size)
+		if (read_count <= dd->input_fifo_size) {
 			writel(read_count, dd->base + SPI_MX_READ_COUNT);
-		else
+			msm_spi_set_write_count(dd, read_count);
+		} else {
 			writel(0, dd->base + SPI_MX_READ_COUNT);
+			msm_spi_set_write_count(dd, 0);
+		}
 	} else
 		dd->mode = SPI_DMOV_MODE;
 
 	/* Write mode - fifo or data mover*/
 	spi_iom = readl(dd->base + SPI_IO_MODES);
 	spi_iom &= ~(SPI_IO_M_INPUT_MODE | SPI_IO_M_OUTPUT_MODE);
-	spi_iom = (spi_iom | (dd->mode << 10));
-	spi_iom = (spi_iom | (dd->mode << 8));
+	spi_iom = (spi_iom | (dd->mode << OUTPUT_MODE_SHIFT));
+	spi_iom = (spi_iom | (dd->mode << INPUT_MODE_SHIFT));
 	/* Turn on packing for data mover */
 	if (dd->mode == SPI_DMOV_MODE)
 		spi_iom |= SPI_IO_M_PACK_EN | SPI_IO_M_UNPACK_EN;
@@ -752,25 +1183,7 @@ static void msm_spi_process_transfer(struct msm_spi *dd)
 		spi_iom &= ~(SPI_IO_M_PACK_EN | SPI_IO_M_UNPACK_EN);
 	writel(spi_iom, dd->base + SPI_IO_MODES);
 
-	spi_config = readl(dd->base + SPI_CONFIG);
-	if ((bpw - 1) != (spi_config & SPI_CFG_N))
-		spi_config = (spi_config & ~SPI_CFG_N) | (bpw - 1);
-	if (dd->cur_msg->spi->mode & SPI_CPHA)
-		spi_config &= ~SPI_CFG_INPUT_FIRST;
-	else
-		spi_config |= SPI_CFG_INPUT_FIRST;
-	if (dd->cur_msg->spi->mode & SPI_LOOP)
-		spi_config |= SPI_CFG_LOOPBACK;
-	else
-		spi_config &= ~SPI_CFG_LOOPBACK;
-	spi_config &= ~(SPI_NO_INPUT|SPI_NO_OUTPUT);
-	if (dd->mode == SPI_DMOV_MODE) {
-		if (dd->read_buf == NULL)
-			spi_config |= SPI_NO_INPUT;
-		if (dd->write_buf == NULL)
-			spi_config |= SPI_NO_OUTPUT;
-	}
-	writel(spi_config, dd->base + SPI_CONFIG);
+	msm_spi_set_config(dd, bpw);
 
 	spi_ioc = readl(dd->base + SPI_IO_CONTROL);
 	spi_ioc_orig = spi_ioc;
@@ -794,21 +1207,23 @@ static void msm_spi_process_transfer(struct msm_spi *dd)
 	   the first. Restricting this to one write avoids contention
 	   issues and race conditions between this thread and the int handler
 	*/
-	else if (dd->mode == SPI_FIFO_MODE)
-		msm_spi_write_word_to_fifo(dd);
+	else if (dd->mode == SPI_FIFO_MODE) {
+		if (msm_spi_prepare_for_write(dd))
+			goto transfer_end;
+		msm_spi_start_write(dd, read_count);
+	}
 
 	/* Only enter the RUN state after the first word is written into
-	   the output FIFO.  Otherwise, the output FIFO EMPTY interrupt
+	   the output FIFO. Otherwise, the output FIFO EMPTY interrupt
 	   might fire before the first word is written resulting in a
 	   possible race condition.
 	 */
-	writel((readl(dd->base + SPI_OPERATIONAL)
-		& ~SPI_OP_STATE) | SPI_OP_STATE_RUN,
-	       dd->base + SPI_OPERATIONAL);
+	if (msm_spi_set_state(dd, SPI_OP_STATE_RUN))
+		goto transfer_end;
 
 	timeout = 100 * msecs_to_jiffies(
 	      DIV_ROUND_UP(dd->cur_transfer->len * 8,
-		 max_speed / MSEC_PER_SEC));
+		 DIV_ROUND_UP(max_speed, MSEC_PER_SEC)));
 	do {
 		if (!wait_for_completion_timeout(&dd->transfer_complete,
 						 timeout)) {
@@ -816,7 +1231,6 @@ static void msm_spi_process_transfer(struct msm_spi *dd)
 						 "timeout\n", __func__);
 				dd->cur_msg->status = -EIO;
 				if (dd->mode == SPI_DMOV_MODE) {
-					writel(0, dd->base + SPI_TIME_OUT);
 					msm_dmov_flush(dd->tx_dma_chan);
 					msm_dmov_flush(dd->rx_dma_chan);
 				}
@@ -824,14 +1238,13 @@ static void msm_spi_process_transfer(struct msm_spi *dd)
 		}
 	} while (msm_spi_dm_send_next(dd));
 
+transfer_end:
 	if (dd->mode == SPI_DMOV_MODE)
 		msm_spi_unmap_dma_buffers(dd);
 	dd->mode = SPI_MODE_NONE;
 
 	writel(spi_ioc & ~SPI_IO_C_MX_CS_MODE, dd->base + SPI_IO_CONTROL);
-	writel((readl(dd->base + SPI_OPERATIONAL)
-		& ~SPI_OP_STATE) | SPI_OP_STATE_RESET,
-	       dd->base + SPI_OPERATIONAL);
+	msm_spi_set_state(dd, SPI_OP_STATE_RESET);
 }
 
 /* workqueue - pull messages from queue & process */
@@ -840,30 +1253,27 @@ static void msm_spi_workq(struct work_struct *work)
 	struct msm_spi      *dd =
 		container_of(work, struct msm_spi, work_data);
 	unsigned long        flags;
-	u32                  spi_op;
 	u32                  status_error = 0;
 
-	if (dd->use_rlock) {
-		/* Don't allow power collapse until we release remote mutex */
-		pm_qos_update_requirement(PM_QOS_CPU_DMA_LATENCY, "msm_spi",
-					  dd->pm_lat);
-		remote_mutex_lock(&dd->r_lock);
-		enable_irq(dd->irq_in);
-		enable_irq(dd->irq_out);
-		enable_irq(dd->irq_err);
-	}
+	mutex_lock(&dd->core_lock);
 
-	spi_op = readl(dd->base + SPI_OPERATIONAL);
-	if (spi_op & SPI_OP_STATE_VALID) {
-		spi_op &= ~SPI_OP_STATE;
-		spi_op |= SPI_OP_STATE_RUN;
-	} else {
+	/* Don't allow power collapse until we release mutex */
+	pm_qos_update_requirement(PM_QOS_CPU_DMA_LATENCY, "msm_spi",
+				  dd->pm_lat);
+	if (dd->use_rlock)
+		remote_mutex_lock(&dd->r_lock);
+
+	clk_enable(dd->clk);
+	if (dd->pclk)
+		clk_enable(dd->pclk);
+	msm_spi_enable_irqs(dd);
+
+	if (!msm_spi_is_valid_state(dd)) {
 		dev_err(dd->dev, "%s: SPI operational state not valid\n",
 			__func__);
 		status_error = 1;
 	}
 
-	dd->transfer_in_progress = 1;
 	spin_lock_irqsave(&dd->queue_lock, flags);
 	while (!list_empty(&dd->queue)) {
 		dd->cur_msg = list_entry(dd->queue.next,
@@ -883,17 +1293,25 @@ static void msm_spi_workq(struct work_struct *work)
 			dd->cur_msg->complete(dd->cur_msg->context);
 		spin_lock_irqsave(&dd->queue_lock, flags);
 	}
+	dd->transfer_pending = 0;
 	spin_unlock_irqrestore(&dd->queue_lock, flags);
-	dd->transfer_in_progress = 0;
 
-	if (dd->use_rlock) {
-		disable_irq(dd->irq_in);
-		disable_irq(dd->irq_out);
-		disable_irq(dd->irq_err);
+	msm_spi_disable_irqs(dd);
+	clk_disable(dd->clk);
+	if (dd->pclk)
+		clk_disable(dd->pclk);
+
+	if (dd->use_rlock)
 		remote_mutex_unlock(&dd->r_lock);
-		pm_qos_update_requirement(PM_QOS_CPU_DMA_LATENCY, "msm_spi",
-					  PM_QOS_DEFAULT_VALUE);
-	}
+
+	pm_qos_update_requirement(PM_QOS_CPU_DMA_LATENCY, "msm_spi",
+				  PM_QOS_DEFAULT_VALUE);
+
+	mutex_unlock(&dd->core_lock);
+	/* If needed, this can be done after the current message is complete,
+	   and work can be continued upon resume. No motivation for now. */
+	if (dd->suspended)
+		wake_up_interruptible(&dd->continue_suspend);
 }
 
 static int msm_spi_transfer(struct spi_device *spi, struct spi_message *msg)
@@ -901,6 +1319,7 @@ static int msm_spi_transfer(struct spi_device *spi, struct spi_message *msg)
 	struct msm_spi	*dd;
 	unsigned long    flags;
 	struct spi_transfer *tr;
+	int ret = -EINVAL;
 
 	dd = spi_master_get_devdata(spi->master);
 	if (dd->suspended)
@@ -915,9 +1334,10 @@ static int msm_spi_transfer(struct spi_device *spi, struct spi_message *msg)
 		unsigned len = tr->len;
 
 		/* Check message parameters */
-		if (tr->speed_hz > dd->max_clock_speed || (tr->bits_per_word &&
-			 (tr->bits_per_word < 4 || tr->bits_per_word > 32)) ||
-			 (tx_buf == NULL && rx_buf == NULL)) {
+		if (tr->speed_hz > dd->pdata->max_clock_speed ||
+		    (tr->bits_per_word &&
+		     (tr->bits_per_word < 4 || tr->bits_per_word > 32)) ||
+		    (tx_buf == NULL && rx_buf == NULL)) {
 			dev_err(&spi->dev, "Invalid transfer: %d Hz, %d bpw"
 					   "tx=%p, rx=%p\n",
 					    tr->speed_hz, tr->bits_per_word,
@@ -948,12 +1368,19 @@ static int msm_spi_transfer(struct spi_device *spi, struct spi_message *msg)
 				if (tx_buf != NULL)
 					dma_unmap_single(NULL, tr->tx_dma,
 							len, DMA_TO_DEVICE);
+				ret = -EINVAL;
 				goto error;
 			}
 		}
 	}
 
 	spin_lock_irqsave(&dd->queue_lock, flags);
+	if (dd->suspended) {
+		spin_unlock_irqrestore(&dd->queue_lock, flags);
+		ret = -EBUSY;
+		goto error;
+	}
+	dd->transfer_pending = 1;
 	list_add_tail(&msg->queue, &dd->queue);
 	spin_unlock_irqrestore(&dd->queue_lock, flags);
 	queue_work(dd->workqueue, &dd->work_data);
@@ -971,7 +1398,7 @@ error:
 						  DMA_FROM_DEVICE);
 		}
 	}
-	return -EINVAL;
+	return ret;
 }
 
 static int msm_spi_setup(struct spi_device *spi)
@@ -1007,8 +1434,18 @@ static int msm_spi_setup(struct spi_device *spi)
 
 	dd = spi_master_get_devdata(spi->master);
 
+	mutex_lock(&dd->core_lock);
+	if (dd->suspended) {
+		mutex_unlock(&dd->core_lock);
+		return -EBUSY;
+	}
+
 	if (dd->use_rlock)
 		remote_mutex_lock(&dd->r_lock);
+
+	clk_enable(dd->clk);
+	if (dd->pclk)
+		clk_enable(dd->pclk);
 
 	spi_ioc = readl(dd->base + SPI_IO_CONTROL);
 	mask = SPI_IO_C_CS_N_POLARITY_0 << spi->chip_select;
@@ -1020,6 +1457,7 @@ static int msm_spi_setup(struct spi_device *spi)
 		spi_ioc |= SPI_IO_C_CLK_IDLE_HIGH;
 	else
 		spi_ioc &= ~SPI_IO_C_CLK_IDLE_HIGH;
+
 	writel(spi_ioc, dd->base + SPI_IO_CONTROL);
 
 	spi_config = readl(dd->base + SPI_CONFIG);
@@ -1032,8 +1470,14 @@ static int msm_spi_setup(struct spi_device *spi)
 	else
 		spi_config |= SPI_CFG_INPUT_FIRST;
 	writel(spi_config, dd->base + SPI_CONFIG);
+
+	clk_disable(dd->clk);
+	if (dd->pclk)
+		clk_disable(dd->pclk);
+
 	if (dd->use_rlock)
 		remote_mutex_unlock(&dd->r_lock);
+	mutex_unlock(&dd->core_lock);
 
 err_setup_exit:
 	return rc;
@@ -1097,7 +1541,12 @@ static ssize_t show_stats(struct device *dev, struct device_attribute *attr,
 
 	return snprintf(buf, PAGE_SIZE,
 			"Device       %s\n"
+			"rx fifo_size = %d spi words\n"
+			"tx fifo_size = %d spi words\n"
 			"use_dma ?    %s\n"
+			"rx block size = %d bytes\n"
+			"tx block size = %d bytes\n"
+			"burst size = %d bytes\n"
 			"DMA configuration:\n"
 			"tx_ch=%d, rx_ch=%d, tx_crci= %d, rx_crci=%d\n"
 			"--statistics--\n"
@@ -1107,14 +1556,19 @@ static ssize_t show_stats(struct device *dev, struct device_attribute *attr,
 			"--debug--\n"
 			"NA yet\n",
 			dev_name(dev),
+			dd->input_fifo_size,
+			dd->output_fifo_size,
 			dd->use_dma ? "yes" : "no",
+			dd->input_block_size,
+			dd->output_block_size,
+			dd->burst_size,
 			dd->tx_dma_chan,
 			dd->rx_dma_chan,
 			dd->tx_dma_crci,
 			dd->rx_dma_crci,
-			dd->stat_rx,
-			dd->stat_tx,
-			dd->stat_dmov_err
+			dd->stat_rx + dd->stat_dmov_rx,
+			dd->stat_tx + dd->stat_dmov_tx,
+			dd->stat_dmov_tx_err + dd->stat_dmov_rx_err
 			);
 }
 
@@ -1125,7 +1579,10 @@ static ssize_t set_stats(struct device *dev, struct device_attribute *attr,
 	struct msm_spi *dd = dev_get_drvdata(dev);
 	dd->stat_rx = 0;
 	dd->stat_tx = 0;
-	dd->stat_dmov_err = 0;
+	dd->stat_dmov_rx = 0;
+	dd->stat_dmov_tx = 0;
+	dd->stat_dmov_rx_err = 0;
+	dd->stat_dmov_tx_err = 0;
 	return count;
 }
 
@@ -1160,12 +1617,12 @@ static void spi_dmov_tx_complete_func(struct msm_dmov_cmd *cmd,
 	/* restore original context */
 	dd = container_of(cmd, struct msm_spi, tx_hdr);
 	if (result & DMOV_RSLT_DONE)
-		dd->stat_tx++;
+		dd->stat_dmov_tx++;
 	else {
 		/* Error or flush */
 		if (result & DMOV_RSLT_ERROR) {
 			dev_err(dd->dev, "DMA error (0x%08x)\n", result);
-			dd->stat_dmov_err++;
+			dd->stat_dmov_tx_err++;
 		}
 		if (result & DMOV_RSLT_FLUSH) {
 			/*
@@ -1182,7 +1639,6 @@ static void spi_dmov_tx_complete_func(struct msm_dmov_cmd *cmd,
 				err->flush[0], err->flush[1], err->flush[2],
 				err->flush[3], err->flush[4], err->flush[5]);
 		dd->cur_msg->status = -EIO;
-		writel(0, dd->base + SPI_TIME_OUT);
 		complete(&dd->transfer_complete);
 	}
 }
@@ -1207,7 +1663,7 @@ static void spi_dmov_rx_complete_func(struct msm_dmov_cmd *cmd,
 	/* restore original context */
 	dd = container_of(cmd, struct msm_spi, rx_hdr);
 	if (result & DMOV_RSLT_DONE) {
-		dd->stat_rx++;
+		dd->stat_dmov_rx++;
 		if (atomic_inc_return(&dd->rx_irq_called) == 1)
 			return;
 		complete(&dd->transfer_complete);
@@ -1215,7 +1671,7 @@ static void spi_dmov_rx_complete_func(struct msm_dmov_cmd *cmd,
 		/** Error or flush  */
 		if (result & DMOV_RSLT_ERROR) {
 			dev_err(dd->dev, "DMA error(0x%08x)\n", result);
-			dd->stat_dmov_err++;
+			dd->stat_dmov_rx_err++;
 		}
 		if (result & DMOV_RSLT_FLUSH) {
 			dev_info(dd->dev,
@@ -1227,7 +1683,6 @@ static void spi_dmov_rx_complete_func(struct msm_dmov_cmd *cmd,
 				err->flush[0], err->flush[1], err->flush[2],
 				err->flush[3], err->flush[4], err->flush[5]);
 		dd->cur_msg->status = -EIO;
-		writel(0, dd->base + SPI_TIME_OUT);
 		complete(&dd->transfer_complete);
 	}
 }
@@ -1326,8 +1781,10 @@ static int __init msm_spi_probe(struct platform_device *pdev)
 	struct spi_master      *master;
 	struct msm_spi	       *dd;
 	struct resource	       *resource;
-	int			rc = 0;
-	struct clk	       *pclk;
+	int                     rc = -ENXIO;
+	int                     locked = 0;
+	int                     clk_enabled = 0;
+	int                     pclk_enabled = 0;
 	struct msm_spi_platform_data *pdata = pdev->dev.platform_data;
 
 	master = spi_alloc_master(&pdev->dev, sizeof(struct msm_spi));
@@ -1344,32 +1801,39 @@ static int __init msm_spi_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, master);
 	dd = spi_master_get_devdata(master);
 
-	dd->irq_in  = platform_get_irq_byname(pdev, "spi_irq_in");
-	dd->irq_out = platform_get_irq_byname(pdev, "spi_irq_out");
-	dd->irq_err = platform_get_irq_byname(pdev, "spi_irq_err");
-	if ((dd->irq_in < 0) || (dd->irq_out < 0) || (dd->irq_err < 0))
+	dd->pdata = pdata;
+	rc = msm_spi_get_irq_data(dd, pdev);
+	if (rc)
 		goto err_probe_res;
-
-	resource  = platform_get_resource_byname(pdev,
+	resource = platform_get_resource_byname(pdev,
 						 IORESOURCE_MEM, "spi_base");
 	if (!resource) {
 		rc = -ENXIO;
 		goto err_probe_res;
 	}
 	dd->mem_phys_addr = resource->start;
-	dd->mem_size = (resource->end - resource->start) + 1;
+	dd->mem_size = resource_size(resource);
+
+	rc = msm_spi_get_gsbi_resource(dd, pdev);
+	if (rc)
+		goto err_probe_res2;
 
 	if (pdata && pdata->dma_config) {
-		rc = pdata->dma_config();
-		if (!rc) {
-			resource  = platform_get_resource_byname(pdev,
-					IORESOURCE_DMA, "spidm_channels");
+		if (rc) {
+			dev_warn(&pdev->dev, "%s: DM mode not supported\n",
+			       __func__);
+			dd->use_dma = 0;
+		} else {
+			resource = platform_get_resource_byname(pdev,
+							IORESOURCE_DMA,
+							"spidm_channels");
 			if (resource) {
 				dd->rx_dma_chan = resource->start;
 				dd->tx_dma_chan = resource->end;
 
-				resource  = platform_get_resource_byname(pdev,
-						IORESOURCE_DMA, "spidm_crci");
+				resource = platform_get_resource_byname(pdev,
+								IORESOURCE_DMA,
+								"spidm_crci");
 				if (!resource) {
 					rc = -ENXIO;
 					goto err_probe_res;
@@ -1391,15 +1855,17 @@ static int __init msm_spi_probe(struct platform_device *pdev)
 	}
 
 	spin_lock_init(&dd->queue_lock);
+	mutex_init(&dd->core_lock);
 	INIT_LIST_HEAD(&dd->queue);
 	INIT_WORK(&dd->work_data, msm_spi_workq);
+	init_waitqueue_head(&dd->continue_suspend);
 	dd->workqueue = create_singlethread_workqueue(
 		master->dev.parent->bus_id);
 	if (!dd->workqueue)
 		goto err_probe_workq;
 
 	if (!request_mem_region(dd->mem_phys_addr, dd->mem_size,
-				SPI_QSD_NAME)) {
+				SPI_DRV_NAME)) {
 		rc = -ENXIO;
 		goto err_probe_reqmem;
 	}
@@ -1407,7 +1873,9 @@ static int __init msm_spi_probe(struct platform_device *pdev)
 	dd->base = ioremap(dd->mem_phys_addr, dd->mem_size);
 	if (!dd->base)
 		goto err_probe_ioremap;
-
+	rc = msm_spi_request_gsbi(dd);
+	if (rc)
+		goto err_probe_ioremap2;
 	if (pdata && pdata->rsl_id) {
 		struct remote_mutex_id rmid;
 		rmid.r_spinlock_id = pdata->rsl_id;
@@ -1430,78 +1898,95 @@ static int __init msm_spi_probe(struct platform_device *pdev)
 			goto err_probe_add_pm_qos;
 		}
 	}
+	mutex_lock(&dd->core_lock);
 	if (dd->use_rlock)
 		remote_mutex_lock(&dd->r_lock);
+	locked = 1;
 
 	dd->dev = &pdev->dev;
-	dd->clk = clk_get(&pdev->dev, "spi_clk");
+	if (!pdata || !pdata->clk_name) {
+		rc = -ENXIO;
+		goto err_probe_clk_undefined;
+	}
+	dd->clk = clk_get(&pdev->dev, pdata->clk_name);
 	if (IS_ERR(dd->clk)) {
-		dev_err(&pdev->dev, "%s: unable to get spi_clk\n", __func__);
+		dev_err(&pdev->dev, "%s: unable to get %s\n", __func__,
+			pdata->clk_name);
 		rc = PTR_ERR(dd->clk);
 		goto err_probe_clk_get;
 	}
-	rc = clk_enable(dd->clk);
-	if (rc) {
-		dev_err(&pdev->dev, "%s: unable to enable spi_clk\n",
-			__func__);
-		goto err_probe_clk_enable;
-	}
-	pclk = clk_get(&pdev->dev, "spi_pclk");
-	if (!IS_ERR(pclk)) {
-		dd->pclk = pclk;
-		rc = clk_enable(dd->pclk);
-		if (rc) {
-			dev_err(&pdev->dev, "%s: unable to enable spi_pclk\n",
-				__func__);
-			goto err_probe_pclk_enable;
+	if (pdata && pdata->pclk_name) {
+		dd->pclk = clk_get(&pdev->dev, pdata->pclk_name);
+		if (IS_ERR(dd->pclk)) {
+			dev_err(&pdev->dev, "%s: unable to get %s\n", __func__,
+				pdata->pclk_name);
+			rc = PTR_ERR(dd->clk);
+			goto err_probe_pclk_get;
 		}
 	}
-	if (pdata && pdata->max_clock_speed) {
-		msm_spi_clock_set(dd, pdata->max_clock_speed);
-		dd->max_clock_speed = pdata->max_clock_speed;
+	msm_spi_init_gsbi(dd);
+	if (pdata && pdata->max_clock_speed)
+		msm_spi_clock_set(dd, dd->pdata->max_clock_speed);
+
+	rc = clk_enable(dd->clk);
+	if (rc) {
+		dev_err(&pdev->dev, "%s: unable to enable %s\n",
+			__func__, pdata->clk_name);
+		goto err_probe_clk_enable;
 	}
+	clk_enabled = 1;
+
+	if (dd->pclk) {
+		rc = clk_enable(dd->pclk);
+		if (rc) {
+			dev_err(&pdev->dev, "%s: unable to enable %s\n",
+			__func__, pdata->pclk_name);
+			goto err_probe_pclk_enable;
+		}
+		pclk_enabled = 1;
+	}
+
 	msm_spi_calculate_fifo_size(dd);
-	writel(0x1, dd->base + SPI_SW_RESET);
 	if (dd->use_dma) {
 		rc = msm_spi_init_dma(dd);
 		if (rc)
 			goto err_probe_dma;
 	}
+
+	/* Initialize registers */
+	writel(0x00000001, dd->base + SPI_SW_RESET);
+	msm_spi_set_state(dd, SPI_OP_STATE_RESET);
+
 	writel(0x00000000, dd->base + SPI_OPERATIONAL);
 	writel(0x00000000, dd->base + SPI_CONFIG);
 	writel(0x00000000, dd->base + SPI_IO_MODES);
+	writel(0x0000007C, dd->base + SPI_ERROR_FLAGS_EN);
+
 	writel(SPI_IO_C_NO_TRI_STATE, dd->base + SPI_IO_CONTROL);
-	if (!(readl(dd->base + SPI_OPERATIONAL) & SPI_OP_STATE_VALID)) {
-		dev_err(&pdev->dev, "%s: SPI operational state not valid\n",
-			__func__);
-		rc = -1;
+	rc = msm_spi_set_state(dd, SPI_OP_STATE_RESET);
+	if (rc)
 		goto err_probe_state;
-	}
-	writel(SPI_OP_STATE_RUN, dd->base + SPI_OPERATIONAL);
+
+	clk_disable(dd->clk);
+	if (dd->pclk)
+		clk_disable(dd->pclk);
+	clk_enabled = 0;
+	pclk_enabled = 0;
 
 	dd->suspended = 0;
-	dd->transfer_in_progress = 0;
+	dd->transfer_pending = 0;
 	dd->mode = SPI_MODE_NONE;
 
-	rc = request_irq(dd->irq_in, msm_spi_input_irq, IRQF_TRIGGER_RISING,
-			  pdev->name, dd);
+	rc = msm_spi_request_irq(dd, pdev->name, master);
 	if (rc)
-		goto err_probe_irq1;
-	rc = request_irq(dd->irq_out, msm_spi_output_irq, IRQF_TRIGGER_RISING,
-			  pdev->name, dd);
-	if (rc)
-		goto err_probe_irq2;
-	rc = request_irq(dd->irq_err, msm_spi_error_irq, IRQF_TRIGGER_RISING,
-			  pdev->name, master);
-	if (rc)
-		goto err_probe_irq3;
+		goto err_probe_irq;
 
-	if (dd->use_rlock) {
-		disable_irq(dd->irq_in);
-		disable_irq(dd->irq_out);
-		disable_irq(dd->irq_err);
+	msm_spi_disable_irqs(dd);
+	if (dd->use_rlock)
 		remote_mutex_unlock(&dd->r_lock);
-	}
+
+	mutex_unlock(&dd->core_lock);
+	locked = 0;
 
 	rc = spi_register_master(master);
 	if (rc)
@@ -1519,28 +2004,32 @@ static int __init msm_spi_probe(struct platform_device *pdev)
 
 err_attrs:
 err_probe_reg_master:
-	free_irq(dd->irq_err, master);
-err_probe_irq3:
-	free_irq(dd->irq_out, dd);
-err_probe_irq2:
-	free_irq(dd->irq_in, dd);
-err_probe_irq1:
+	msm_spi_free_irq(dd, master);
+err_probe_irq:
 err_probe_state:
 	msm_spi_teardown_dma(dd);
 err_probe_dma:
-	if (dd->pclk)
+	if (pclk_enabled)
 		clk_disable(dd->pclk);
 err_probe_pclk_enable:
+	if (clk_enabled)
+		clk_disable(dd->clk);
+err_probe_clk_enable:
 	if (dd->pclk)
 		clk_put(dd->pclk);
-	clk_disable(dd->clk);
-err_probe_clk_enable:
+err_probe_pclk_get:
 	clk_put(dd->clk);
 err_probe_clk_get:
-	if (dd->use_rlock)
-		remote_mutex_unlock(&dd->r_lock);
+err_probe_clk_undefined:
+	if (locked) {
+		if (dd->use_rlock)
+			remote_mutex_unlock(&dd->r_lock);
+		mutex_unlock(&dd->core_lock);
+	}
 err_probe_add_pm_qos:
 err_probe_rlock_init:
+	msm_spi_release_gsbi(dd);
+err_probe_ioremap2:
 	iounmap(dd->base);
 err_probe_ioremap:
 	release_mem_region(dd->mem_phys_addr, dd->mem_size);
@@ -1550,6 +2039,7 @@ err_probe_workq:
 err_probe_gpio:
 	if (pdata && pdata->gpio_release)
 		pdata->gpio_release();
+err_probe_res2:
 err_probe_res:
 	spi_master_put(master);
 err_probe_exit:
@@ -1561,30 +2051,21 @@ static int msm_spi_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	struct spi_master *master = platform_get_drvdata(pdev);
 	struct msm_spi    *dd;
-	int                limit = 0;
+	unsigned long      flags;
 
 	if (!master)
 		goto suspend_exit;
 	dd = spi_master_get_devdata(master);
 	if (!dd)
 		goto suspend_exit;
-	dd->suspended = 1;
-	while ((!list_empty(&dd->queue) || dd->transfer_in_progress) &&
-	       limit < 50) {
-		if (dd->mode == SPI_DMOV_MODE) {
-			msm_dmov_flush(dd->tx_dma_chan);
-			msm_dmov_flush(dd->rx_dma_chan);
-		}
-		limit++;
-		msleep(1);
-	}
 
-	disable_irq(dd->irq_in);
-	disable_irq(dd->irq_out);
-	disable_irq(dd->irq_err);
-	if (dd->use_rlock)
-		remote_mutex_unlock(&dd->r_lock);
-	clk_disable(dd->clk);
+	/* Make sure nothing is added to the queue while we're suspending */
+	spin_lock_irqsave(&dd->queue_lock, flags);
+	dd->suspended = 1;
+	spin_unlock_irqrestore(&dd->queue_lock, flags);
+
+	/* Wait for transactions to end, or time out */
+	wait_event_interruptible(dd->continue_suspend, !dd->transfer_pending);
 
 suspend_exit:
 	return 0;
@@ -1594,7 +2075,6 @@ static int msm_spi_resume(struct platform_device *pdev)
 {
 	struct spi_master *master = platform_get_drvdata(pdev);
 	struct msm_spi    *dd;
-	int rc;
 
 	if (!master)
 		goto resume_exit;
@@ -1602,16 +2082,6 @@ static int msm_spi_resume(struct platform_device *pdev)
 	if (!dd)
 		goto resume_exit;
 
-	rc = clk_enable(dd->clk);
-	if (rc) {
-		dev_err(dd->dev, "%s: unable to enable spi_clk\n",
-			__func__);
-		goto resume_exit;
-	}
-
-	enable_irq(dd->irq_in);
-	enable_irq(dd->irq_out);
-	enable_irq(dd->irq_err);
 	dd->suspended = 0;
 resume_exit:
 	return 0;
@@ -1631,10 +2101,7 @@ static int __devexit msm_spi_remove(struct platform_device *pdev)
 	spi_debugfs_exit(dd);
 	sysfs_remove_group(&pdev->dev.kobj, &dev_attr_grp);
 
-	free_irq(dd->irq_in, dd);
-	free_irq(dd->irq_out, dd);
-	free_irq(dd->irq_err, master);
-
+	msm_spi_free_irq(dd, master);
 	msm_spi_teardown_dma(dd);
 
 	if (pdata && pdata->gpio_release)
@@ -1642,12 +2109,10 @@ static int __devexit msm_spi_remove(struct platform_device *pdev)
 
 	iounmap(dd->base);
 	release_mem_region(dd->mem_phys_addr, dd->mem_size);
-	clk_disable(dd->clk);
+	msm_spi_release_gsbi(dd);
 	clk_put(dd->clk);
-	if (dd->pclk) {
-		clk_disable(dd->pclk);
+	if (dd->pclk)
 		clk_put(dd->pclk);
-	}
 	destroy_workqueue(dd->workqueue);
 	platform_set_drvdata(pdev, 0);
 	spi_unregister_master(master);
@@ -1659,7 +2124,7 @@ static int __devexit msm_spi_remove(struct platform_device *pdev)
 static struct platform_driver msm_spi_driver = {
 	.probe          = msm_spi_probe,
 	.driver		= {
-		.name	= "spi_qsd",
+		.name	= SPI_DRV_NAME,
 		.owner	= THIS_MODULE,
 	},
 	.suspend        = msm_spi_suspend,
