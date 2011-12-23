@@ -143,6 +143,7 @@ static struct device_attribute device_attrs[] = {
  */
 static void drm_sysfs_device_release(struct device *dev)
 {
+	memset(dev, 0, sizeof(struct device));
 	return;
 }
 
