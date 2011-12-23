@@ -295,10 +295,10 @@ static int drm_addmap_core(struct drm_device * dev, unsigned int offset,
 		DRM_DEBUG("AGP offset = 0x%08lx, size = 0x%08lx\n", map->offset, map->size);
 
 		break;
-	case _DRM_GEM:
-		DRM_ERROR("tried to rmmap GEM object\n");
-		break;
 	}
+	case _DRM_GEM:
+		DRM_ERROR("tried to addmap GEM object\n");
+		break;
 	case _DRM_SCATTER_GATHER:
 		if (!dev->sg) {
 			drm_free(map, sizeof(*map), DRM_MEM_MAPS);
