@@ -809,7 +809,7 @@ rcu_try_flip_waitzero(void)
 	/* Check to see if the sum of the "last" counters is zero. */
 
 	RCU_TRACE_ME(rcupreempt_trace_try_flip_z1);
-	for_each_cpu(cpu, to_cpumask(rcu_cpu_online_map))
+	for_each_possible_cpu(cpu)
 		sum += RCU_DATA_CPU(cpu)->rcu_flipctr[lastidx];
 	if (sum != 0) {
 		RCU_TRACE_ME(rcupreempt_trace_try_flip_ze1);
@@ -1026,12 +1026,6 @@ void rcu_offline_cpu(int cpu)
 		smp_mb();  /* Subsequent RCU read-side critical sections */
 			   /*  seen -after- acknowledgement. */
 	}
-
-	RCU_DATA_ME()->rcu_flipctr[0] += RCU_DATA_CPU(cpu)->rcu_flipctr[0];
-	RCU_DATA_ME()->rcu_flipctr[1] += RCU_DATA_CPU(cpu)->rcu_flipctr[1];
-
-	RCU_DATA_CPU(cpu)->rcu_flipctr[0] = 0;
-	RCU_DATA_CPU(cpu)->rcu_flipctr[1] = 0;
 
 	cpumask_clear_cpu(cpu, to_cpumask(rcu_cpu_online_map));
 
