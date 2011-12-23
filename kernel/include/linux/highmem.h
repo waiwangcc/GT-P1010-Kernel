@@ -42,7 +42,9 @@ static inline void *kmap(struct page *page)
 	return page_address(page);
 }
 
-#define kunmap(page) do { (void) (page); } while (0)
+static inline void kunmap(struct page *page)
+{
+}
 
 #include <asm/kmap_types.h>
 
