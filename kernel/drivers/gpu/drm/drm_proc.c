@@ -108,6 +108,10 @@ int drm_proc_create_files(struct drm_info_list *files, int count,
 			continue;
 
 		tmp = drm_alloc(sizeof(struct drm_info_node), _DRM_DRIVER);
+		if (tmp == NULL) {
+			ret = -1;
+			goto fail;
+		}
 		ent = create_proc_entry(files[i].name, S_IFREG | S_IRUGO, root);
 		if (!ent) {
 			DRM_ERROR("Cannot create /proc/dri/%s/%s\n",
