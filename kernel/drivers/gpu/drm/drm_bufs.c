@@ -156,6 +156,14 @@ static int drm_addmap_core(struct drm_device * dev, unsigned int offset,
 	}
 	DRM_DEBUG("offset = 0x%08lx, size = 0x%08lx, type = %d\n",
 		  map->offset, map->size, map->type);
+
+	/* page-align _DRM_SHM maps. They are allocated here so there is no security
+	 * hole created by that and it works around various broken drivers that use
+	 * a non-aligned quantity to map the SAREA. --BenH
+	 */
+	if (map->type == _DRM_SHM)
+		map->size = PAGE_ALIGN(map->size);
+
 	if ((map->offset & (~PAGE_MASK)) || (map->size & (~PAGE_MASK))) {
 		drm_free(map, sizeof(*map), DRM_MEM_MAPS);
 		return -EINVAL;
