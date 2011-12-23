@@ -112,20 +112,21 @@ int drm_proc_create_files(struct drm_info_list *files, int count,
 			ret = -1;
 			goto fail;
 		}
-		ent = create_proc_entry(files[i].name, S_IFREG | S_IRUGO, root);
+		tmp->minor = minor;
+		tmp->info_ent = &files[i];
+		list_add(&tmp->list, &minor->proc_nodes.list);
+
+		ent = proc_create_data(files[i].name, S_IRUGO, root,
+				       &drm_proc_fops, tmp);
 		if (!ent) {
 			DRM_ERROR("Cannot create /proc/dri/%s/%s\n",
 				  name, files[i].name);
+			list_del(&tmp->list);
 			drm_free(tmp, sizeof(struct drm_info_node),
 				 _DRM_DRIVER);
 			ret = -1;
 			goto fail;
 		}
-		ent->proc_fops = &drm_proc_fops;
-		ent->data = tmp;
-		tmp->minor = minor;
-		tmp->info_ent = &files[i];
-		list_add(&(tmp->list), &(minor->proc_nodes.list));
 	}
 	return 0;
 fail:
