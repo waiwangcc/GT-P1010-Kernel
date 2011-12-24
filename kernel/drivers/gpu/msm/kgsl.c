@@ -1,57 +1,18 @@
 /* Copyright (c) 2008-2010, Code Aurora Forum. All rights reserved.
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in the
- *       documentation and/or other materials provided with the distribution.
- *     * Neither the name of Code Aurora Forum nor
- *       the names of its contributors may be used to endorse or promote
- *       products derived from this software without specific prior written
- *       permission.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
  *
- * Alternatively, provided that this notice is retained in full, this software
- * may be relicensed by the recipient under the terms of the GNU General Public
- * License version 2 ("GPL") and only version 2, in which case the provisions of
- * the GPL apply INSTEAD OF those given above.  If the recipient relicenses the
- * software under the GPL, then the identification text in the MODULE_LICENSE
- * macro must be changed to reflect "GPLv2" instead of "Dual BSD/GPL".  Once a
- * recipient changes the license terms to the GPL, subsequent recipients shall
- * not relicense under alternate licensing terms, including the BSD or dual
- * BSD/GPL terms.  In addition, the following license statement immediately
- * below and between the words START and END shall also then apply when this
- * software is relicensed under the GPL:
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- * START
- *
- * This program is free software; you can redistribute it and/or modify it under
- * the terms of the GNU General Public License version 2 and only version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details.
- *
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
- *
- * END
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
  *
  */
 #include <linux/miscdevice.h>
@@ -72,6 +33,7 @@
 #include <linux/pm_qos_params.h>
 #include <linux/highmem.h>
 #include <linux/vmalloc.h>
+#include <asm/cacheflush.h>
 
 #include <linux/delay.h>
 #include <asm/atomic.h>
@@ -111,8 +73,61 @@ static int kgsl_runpending(struct kgsl_device *device)
 	return 0;
 }
 
-static void kgsl_clean_cache_all(struct kgsl_file_private *private)
+#ifdef CONFIG_MSM_KGSL_MMU
+static long kgsl_cache_range_op(unsigned long addr, int size,
+					unsigned int flags)
 {
+#ifdef CONFIG_OUTER_CACHE
+	unsigned long end;
+#endif
+	BUG_ON(addr & (KGSL_PAGESIZE - 1));
+	BUG_ON(size & (KGSL_PAGESIZE - 1));
+
+	if (flags & KGSL_MEMFLAGS_CACHE_FLUSH)
+		dmac_flush_range((const void *)addr,
+				(const void *)(addr + size));
+	else
+		if (flags & KGSL_MEMFLAGS_CACHE_CLEAN)
+			dmac_clean_range((const void *)addr,
+					(const void *)(addr + size));
+		else if (flags & KGSL_MEMFLAGS_CACHE_INV)
+			dmac_inv_range((const void *)addr,
+					(const void *)(addr + size));
+
+#ifdef CONFIG_OUTER_CACHE
+	for (end = addr; end < (addr + size); end += KGSL_PAGESIZE) {
+		unsigned long physaddr;
+		if (flags & KGSL_MEMFLAGS_VMALLOC_MEM)
+			physaddr = page_to_phys(vmalloc_to_page((void *) end));
+		else
+			if (flags & KGSL_MEMFLAGS_HOSTADDR) {
+				physaddr = kgsl_virtaddr_to_physaddr(end);
+				if (!physaddr) {
+					KGSL_MEM_ERR
+					("Unable to find physaddr for "
+					"address: %x\n", (unsigned int)end);
+					return -EINVAL;
+				}
+			} else
+				return -EINVAL;
+
+		if (flags & KGSL_MEMFLAGS_CACHE_FLUSH)
+			outer_flush_range(physaddr, physaddr + KGSL_PAGESIZE);
+		else
+			if (flags & KGSL_MEMFLAGS_CACHE_CLEAN)
+				outer_clean_range(physaddr,
+					physaddr + KGSL_PAGESIZE);
+			else if (flags & KGSL_MEMFLAGS_CACHE_INV)
+				outer_inv_range(physaddr,
+					physaddr + KGSL_PAGESIZE);
+	}
+#endif
+	return 0;
+}
+
+static long kgsl_clean_cache_all(struct kgsl_file_private *private)
+{
+	int result = 0;
 	struct kgsl_mem_entry *entry = NULL;
 
 	kgsl_runpending(&kgsl_driver.yamato_device);
@@ -120,13 +135,19 @@ static void kgsl_clean_cache_all(struct kgsl_file_private *private)
 
 	list_for_each_entry(entry, &private->mem_list, list) {
 		if (KGSL_MEMFLAGS_CACHE_MASK & entry->memdesc.priv) {
+			result =
 			    kgsl_cache_range_op((unsigned long)entry->
 						   memdesc.hostptr,
 						   entry->memdesc.size,
-						   entry->memdesc.priv);
+							entry->memdesc.priv);
+			if (result)
+				goto done;
 		}
 	}
+done:
+	return result;
 }
+#endif /*CONFIG_MSM_KGSL_MMU*/
 
 /*this is used for logging, so that we can call the dev_printk
  functions without export struct kgsl_driver everywhere*/
@@ -140,7 +161,6 @@ int kgsl_regread(struct kgsl_device *device, unsigned int offsetwords,
 			unsigned int *value)
 {
 	int status = -ENXIO;
-
 	if (device->ftbl.device_regread)
 		status = device->ftbl.device_regread(device, offsetwords,
 					value);
@@ -430,7 +450,6 @@ static int kgsl_release(struct inode *inodep, struct file *filep)
 	struct kgsl_mem_entry *entry, *entry_tmp;
 	struct kgsl_file_private *private = NULL;
 
-	mutex_lock(&kgsl_driver.mutex);
 	KGSL_PRE_HWACCESS();
 
 	private = filep->private_data;
@@ -689,7 +708,6 @@ static long kgsl_ioctl_device_waittimestamp(struct kgsl_file_private *private,
 		goto done;
 	}
 
-	mutex_unlock(&kgsl_driver.mutex);
 	/* Don't wait forever, set a max value for now */
 	if (param.timeout == -1)
 		param.timeout = 10 * MSEC_PER_SEC;
@@ -697,11 +715,9 @@ static long kgsl_ioctl_device_waittimestamp(struct kgsl_file_private *private,
 		result = kgsl_yamato_waittimestamp(&kgsl_driver.yamato_device,
 				     param.timestamp,
 				     param.timeout);
-		mutex_lock(&kgsl_driver.mutex);
 
 		kgsl_runpending(&kgsl_driver.yamato_device);
 	} else if (param.device_id == KGSL_DEVICE_G12) {
-		mutex_lock(&kgsl_driver.mutex);
 		KGSL_G12_PRE_HWACCESS();
 		mutex_unlock(&kgsl_driver.mutex);
 		result = kgsl_g12_waittimestamp(&kgsl_driver.g12_device,
@@ -1082,14 +1098,15 @@ static long kgsl_ioctl_sharedmem_from_vmalloc(struct kgsl_file_private *private,
 		goto error;
 	}
 
+	if ((private->vmalloc_size + len) > KGSL_GRAPHICS_MEMORY_LOW_WATERMARK
+	    && !param.force_no_low_watermark) {
+		result = -ENOMEM;
+		goto error;
+	}
+
 	list_for_each_entry_safe(entry, entry_tmp,
 				&private->preserve_entry_list, list) {
-		/* make sure that read only pages aren't accidently
-		 * used when read-write pages are requested
-		 */
-		if (entry->memdesc.size == len &&
-		    ((entry->memdesc.priv & KGSL_MEMFLAGS_GPUREADONLY) ==
-		    (param.flags & KGSL_MEMFLAGS_GPUREADONLY))) {
+		if (entry->memdesc.size == len) {
 			list_del(&entry->list);
 			found = 1;
 			break;
@@ -1219,7 +1236,6 @@ static int kgsl_ioctl_sharedmem_from_pmem(struct kgsl_file_private *private,
 	struct kgsl_mem_entry *entry = NULL;
 	unsigned long start = 0, len = 0;
 	struct file *pmem_file = NULL;
-	uint64_t total_offset;
 
 	if (copy_from_user(&param, arg, sizeof(param))) {
 		result = -EFAULT;
@@ -1234,8 +1250,7 @@ static int kgsl_ioctl_sharedmem_from_pmem(struct kgsl_file_private *private,
 		if (!param.len)
 			param.len = len;
 
-		total_offset = param.offset + param.len;
-		if (total_offset > (uint64_t)len) {
+		if (param.offset + param.len > len) {
 			KGSL_DRV_ERR("%s: region too large "
 					"0x%x + 0x%x >= 0x%lx\n",
 				     __func__, param.offset, param.len, len);
@@ -1273,12 +1288,7 @@ static int kgsl_ioctl_sharedmem_from_pmem(struct kgsl_file_private *private,
 
 	/* If the offset is not at 4K boundary then add the correct offset
 	 * value to gpuaddr */
-	total_offset = entry->memdesc.gpuaddr + (param.offset & ~KGSL_PAGEMASK);
-	if (total_offset > (uint64_t)UINT_MAX) {
-		result = -EINVAL;
-		goto error_unmap_entry;
-	}
-	entry->memdesc.gpuaddr = total_offset;
+	entry->memdesc.gpuaddr += (param.offset & ~KGSL_PAGEMASK);
 	param.gpuaddr = entry->memdesc.gpuaddr;
 
 	if (copy_to_user(arg, &param, sizeof(param))) {
@@ -1323,8 +1333,8 @@ static long kgsl_ioctl_sharedmem_flush_cache(struct kgsl_file_private *private,
 		result = -EINVAL;
 		goto done;
 	}
-	kgsl_cache_range_op((unsigned long)entry->memdesc.hostptr,
-				entry->memdesc.size,
+	result = kgsl_cache_range_op((unsigned long)entry->memdesc.hostptr,
+					entry->memdesc.size,
 				KGSL_MEMFLAGS_CACHE_CLEAN |
 				KGSL_MEMFLAGS_HOSTADDR);
 	/* Mark memory as being flushed so we don't flush it again */
@@ -1343,9 +1353,7 @@ static long kgsl_ioctl(struct file *filep, unsigned int cmd, unsigned long arg)
 	BUG_ON(private == NULL);
 
 	KGSL_DRV_VDBG("filep %p cmd 0x%08x arg 0x%08lx\n", filep, cmd, arg);
-
-	mutex_lock(&kgsl_driver.mutex);
-
+	KGSL_PRE_HWACCESS();
 	switch (cmd) {
 
 	case IOCTL_KGSL_DEVICE_GETPROPERTY:
@@ -1411,6 +1419,7 @@ static long kgsl_ioctl(struct file *filep, unsigned int cmd, unsigned long arg)
 		result = kgsl_ioctl_sharedmem_from_vmalloc(private,
 							   (void __user *)arg);
 		break;
+
 	case IOCTL_KGSL_SHAREDMEM_FLUSH_CACHE:
 		if (kgsl_cache_enable)
 			result =
@@ -1479,9 +1488,6 @@ static int kgsl_mmap(struct file *file, struct vm_area_struct *vma)
 			goto done;
 		}
 		memdesc = &device->memstore;
-	} else {
-		result = -EINVAL;
-		goto done;
 	}
 
 	if (memdesc->size != vma_size) {
@@ -1526,24 +1532,6 @@ struct kgsl_driver kgsl_driver = {
 
 static void kgsl_driver_cleanup(void)
 {
-
-	struct kgsl_memregion *regspace = &kgsl_driver.yamato_device.regspace;
-
-	regspace = &kgsl_driver.yamato_device.regspace;
-	if (regspace->mmio_virt_base) {
-		iounmap(regspace->mmio_virt_base);
-		release_mem_region(regspace->mmio_phys_base,
-				   regspace->sizebytes);
-		memset(&regspace, 0, sizeof(*regspace));
-	}
-
-	regspace = &kgsl_driver.g12_device.regspace;
-	if (regspace->mmio_virt_base) {
-		iounmap(regspace->mmio_virt_base);
-		release_mem_region(regspace->mmio_phys_base,
-				   regspace->sizebytes);
-		memset(&regspace, 0, sizeof(*regspace));
-	}
 
 	if (kgsl_driver.yamato_interrupt_num > 0) {
 		if (kgsl_driver.yamato_have_irq) {
@@ -1823,5 +1811,5 @@ module_exit(kgsl_mod_exit);
 
 MODULE_DESCRIPTION("Graphics driver for QSD8x50, MSM7x27, and MSM7x30");
 MODULE_VERSION("1.1");
-MODULE_LICENSE("Dual BSD/GPL");
+MODULE_LICENSE("GPL v2");
 MODULE_ALIAS("platform:kgsl");

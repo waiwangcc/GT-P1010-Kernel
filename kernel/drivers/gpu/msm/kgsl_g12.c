@@ -1,72 +1,18 @@
 /* Copyright (c) 2002,2007-2010, Code Aurora Forum. All rights reserved.
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- *       copyright notice, this list of conditions and the following
- *       disclaimer in the documentation and/or other materials provided
- *       with the distribution.
- *     * Neither the name of Code Aurora Forum, Inc. nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
- * IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
- * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
- * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
- * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
- * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
- * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, and instead of the terms immediately above, this
- * software may be relicensed by the recipient at their option under the
- * terms of the GNU General Public License version 2 ("GPL") and only
- * version 2.  If the recipient chooses to relicense the software under
- * the GPL, then the recipient shall replace all of the text immediately
- * above and including this paragraph with the text immediately below
- * and between the words START OF ALTERNATE GPL TERMS and END OF
- * ALTERNATE GPL TERMS and such notices and license terms shall apply
- * INSTEAD OF the notices and licensing terms given above.
- *
- * START OF ALTERNATE GPL TERMS
- *
- * Copyright (c) 2002,2007-2010, Code Aurora Forum. All rights reserved.
- *
- * This software was originally licensed under the Code Aurora Forum
- * Inc. Dual BSD/GPL License version 1.1 and relicensed as permitted
- * under the terms thereof by a recipient under the General Public
- * License Version 2.
- *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
  * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
  * 02110-1301, USA.
- *
- * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
- * IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
- * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
- * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
- * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
- * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
- * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * END OF ALTERNATE GPL TERMS
  *
  */
 #include <linux/delay.h>
@@ -258,37 +204,33 @@ kgsl_g12_init(struct kgsl_device *device,
 		KGSL_DRV_VDBG("return %d\n", 0);
 		return 0;
 	}
+	memset(device, 0, sizeof(*device));
 
 	device->flags |= KGSL_FLAGS_INITIALIZED;
 
 	/* initilization of timestamp wait */
 	init_waitqueue_head(&(device->wait_timestamp_wq));
 
-	if (regspace->mmio_virt_base == NULL) {
-		memcpy(regspace, &config->regspace, sizeof(device->regspace));
-		if (regspace->mmio_phys_base == 0 || regspace->sizebytes == 0) {
-			KGSL_DRV_ERR("dev %d invalid regspace\n", device->id);
-			goto error;
-		}
-		if (!request_mem_region(regspace->mmio_phys_base,
-					regspace->sizebytes, DRIVER_NAME)) {
-			KGSL_DRV_ERR("request_mem_region failed for " \
+	memcpy(regspace, &config->regspace, sizeof(device->regspace));
+	if (regspace->mmio_phys_base == 0 || regspace->sizebytes == 0) {
+		KGSL_DRV_ERR("dev %d invalid regspace\n", device->id);
+		goto error;
+	}
+	if (!request_mem_region(regspace->mmio_phys_base,
+				regspace->sizebytes, DRIVER_NAME)) {
+		KGSL_DRV_ERR("request_mem_region failed for " \
 					"register memory\n");
-			status = -ENODEV;
-			goto error;
-		}
+		status = -ENODEV;
+		goto error;
+	}
 
-		regspace->mmio_virt_base = ioremap(regspace->mmio_phys_base,
-				regspace->sizebytes);
-		KGSL_MEM_INFO("ioremap(regs) = %p\n", regspace->mmio_virt_base);
-		if (regspace->mmio_virt_base == NULL) {
-			KGSL_DRV_ERR("ioremap failed for register memory\n");
-			release_mem_region(regspace->mmio_phys_base,
+	regspace->mmio_virt_base = ioremap(regspace->mmio_phys_base,
 					   regspace->sizebytes);
-			memset(regspace, 0, sizeof(regspace));
-			status = -ENODEV;
-			goto error;
-		}
+	KGSL_MEM_INFO("ioremap(regs) = %p\n", regspace->mmio_virt_base);
+	if (regspace->mmio_virt_base == NULL) {
+		KGSL_DRV_ERR("ioremap failed for register memory\n");
+		status = -ENODEV;
+		goto error_release_mem;
 	}
 
 	KGSL_DRV_INFO("dev %d regs phys 0x%08x size 0x%08x virt %p\n",
@@ -320,7 +262,7 @@ kgsl_g12_init(struct kgsl_device *device,
 
 	if (status != 0) {
 		status = -ENODEV;
-		goto error;
+		goto error_iounmap;
 	}
 
 	status = kgsl_sharedmem_alloc(memflags, sizeof(device->memstore),
@@ -335,6 +277,11 @@ kgsl_g12_init(struct kgsl_device *device,
 
 	return 0;
 
+error_iounmap:
+	iounmap(regspace->mmio_virt_base);
+	regspace->mmio_virt_base = NULL;
+error_release_mem:
+	release_mem_region(regspace->mmio_phys_base, regspace->sizebytes);
 error_close_mmu:
 	kgsl_mmu_close(device);
 error:
@@ -343,10 +290,24 @@ error:
 
 int kgsl_g12_close(struct kgsl_device *device)
 {
+	struct kgsl_memregion *regspace = &device->regspace;
+
+	kgsl_g12_idle(device, KGSL_TIMEOUT_DEFAULT);
+	kgsl_g12_cmdwindow_close(device);
+
 	if (device->memstore.hostptr)
 		kgsl_sharedmem_free(&device->memstore);
 
 	kgsl_mmu_close(device);
+
+	if (regspace->mmio_virt_base != NULL) {
+		KGSL_MEM_INFO("iounmap(regs) = %p\n",
+				regspace->mmio_virt_base);
+		iounmap(regspace->mmio_virt_base);
+		regspace->mmio_virt_base = NULL;
+		release_mem_region(regspace->mmio_phys_base,
+					regspace->sizebytes);
+	}
 
 	KGSL_DRV_VDBG("return %d\n", 0);
 	device->flags &= ~KGSL_FLAGS_INITIALIZED;
@@ -355,6 +316,8 @@ int kgsl_g12_close(struct kgsl_device *device)
 
 int kgsl_g12_start(struct kgsl_device *device, uint32_t flags)
 {
+	int status = -EINVAL;
+
 	KGSL_DRV_VDBG("enter (device=%p)\n", device);
 
 	if (!(device->flags & KGSL_FLAGS_INITIALIZED)) {
@@ -367,6 +330,12 @@ int kgsl_g12_start(struct kgsl_device *device, uint32_t flags)
 		return 0;
 	}
 
+	status = kgsl_g12_cmdwindow_init(device);
+	if (status != 0) {
+		kgsl_g12_stop(device);
+		return status;
+	}
+
 	device->flags |= KGSL_FLAGS_STARTED;
 	init_timer(&idle_timer);
 	idle_timer.function = kgsl_g12_timer;
@@ -376,8 +345,8 @@ int kgsl_g12_start(struct kgsl_device *device, uint32_t flags)
 
 	INIT_LIST_HEAD(&device->ringbuffer.memqueue);
 
-	KGSL_DRV_VDBG("return");
-	return 0;
+	KGSL_DRV_VDBG("return %d\n", status);
+	return status;
 }
 
 int kgsl_g12_stop(struct kgsl_device *device)
@@ -551,7 +520,7 @@ int kgsl_g12_regread(struct kgsl_device *device, unsigned int offsetwords,
 				unsigned int *value)
 {
 	unsigned int *reg;
-	KGSL_PRE_HWACCESS();
+
 	if ((offsetwords >= ADDR_MH_ARBITER_CONFIG &&
 	     offsetwords <= ADDR_MH_AXI_HALT_CONTROL) ||
 	    (offsetwords >= ADDR_MH_MMU_CONFIG &&
@@ -581,7 +550,6 @@ int kgsl_g12_regwrite(struct kgsl_device *device, unsigned int offsetwords,
 {
 	unsigned int *reg;
 
-	KGSL_PRE_HWACCESS();
 	if ((offsetwords >= ADDR_MH_ARBITER_CONFIG &&
 	     offsetwords <= ADDR_MH_AXI_HALT_CONTROL) ||
 	    (offsetwords >= ADDR_MH_MMU_CONFIG &&

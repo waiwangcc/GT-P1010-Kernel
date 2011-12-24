@@ -1,58 +1,18 @@
 /* Copyright (c) 2002,2007-2009, Code Aurora Forum. All rights reserved.
- * Copyright (C) 2010 Sony Ericsson Mobile Communications AB.
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in the
- *       documentation and/or other materials provided with the distribution.
- *     * Neither the name of Code Aurora Forum nor
- *       the names of its contributors may be used to endorse or promote
- *       products derived from this software without specific prior written
- *       permission.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
  *
- * Alternatively, provided that this notice is retained in full, this software
- * may be relicensed by the recipient under the terms of the GNU General Public
- * License version 2 ("GPL") and only version 2, in which case the provisions of
- * the GPL apply INSTEAD OF those given above.  If the recipient relicenses the
- * software under the GPL, then the identification text in the MODULE_LICENSE
- * macro must be changed to reflect "GPLv2" instead of "Dual BSD/GPL".  Once a
- * recipient changes the license terms to the GPL, subsequent recipients shall
- * not relicense under alternate licensing terms, including the BSD or dual
- * BSD/GPL terms.  In addition, the following license statement immediately
- * below and between the words START and END shall also then apply when this
- * software is relicensed under the GPL:
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- * START
- *
- * This program is free software; you can redistribute it and/or modify it under
- * the terms of the GNU General Public License version 2 and only version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details.
- *
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
- *
- * END
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
  *
  */
 #include <linux/firmware.h>
@@ -137,9 +97,17 @@ void kgsl_cp_intrcallback(struct kgsl_device *device)
 		return;
 	}
 
-	if (status & CP_INT_CNTL__IB1_INT_MASK) {
-		/*this is the only used soft interrupt */
-		KGSL_CMD_WARN("ringbuffer ib1 interrupt\n");
+	if (status & CP_INT_CNTL__RB_INT_MASK) {
+		/* signal intr completion event */
+		unsigned int enableflag = 0;
+		kgsl_sharedmem_writel(&rb->device->memstore,
+			KGSL_DEVICE_MEMSTORE_OFFSET(ts_cmp_enable),
+			enableflag);
+		KGSL_CMD_WARN("ringbuffer rb interrupt\n");
+	}
+
+	if (status & (CP_INT_CNTL__IB1_INT_MASK | CP_INT_CNTL__RB_INT_MASK)) {
+		KGSL_CMD_WARN("ringbuffer ib1/rb interrupt\n");
 		wake_up_interruptible_all(&device->ib1_wq);
 	}
 	if (status & CP_INT_CNTL__T0_PACKET_IN_IB_MASK) {
@@ -169,9 +137,6 @@ void kgsl_cp_intrcallback(struct kgsl_device *device)
 	}
 	if (status & CP_INT_CNTL__SW_INT_MASK)
 		KGSL_CMD_DBG("ringbuffer software interrupt\n");
-
-	if (status & CP_INT_CNTL__RB_INT_MASK)
-		KGSL_CMD_DBG("ringbuffer rb interrupt\n");
 
 	if (status & CP_INT_CNTL__IB2_INT_MASK)
 		KGSL_CMD_DBG("ringbuffer ib2 interrupt\n");
@@ -268,15 +233,6 @@ kgsl_ringbuffer_waitspace(struct kgsl_ringbuffer *rb, unsigned int numcmds,
 
 		cmds = (unsigned int *)rb->buffer_desc.hostptr + rb->wptr;
 		GSL_RB_WRITE(cmds, pm4_nop_packet(nopcount));
-
-		/* Make sure that rptr is not 0 before submitting
-		 * commands at the end of ringbuffer. We do not
-		 * want the rptr and wptr to become equal when
-		 * the ringbuffer is not empty */
-		do {
-			GSL_RB_GET_READPTR(rb, &rb->rptr);
-		} while (!rb->rptr);
-
 		rb->wptr++;
 
 		kgsl_ringbuffer_submit(rb);
@@ -290,7 +246,7 @@ kgsl_ringbuffer_waitspace(struct kgsl_ringbuffer *rb, unsigned int numcmds,
 
 		freecmds = rb->rptr - rb->wptr;
 
-	} while ((freecmds != 0) && (freecmds <= numcmds));
+	} while ((freecmds != 0) && (freecmds < numcmds));
 
 	KGSL_CMD_VDBG("return %d\n", 0);
 
@@ -485,6 +441,8 @@ static int kgsl_ringbuffer_start(struct kgsl_ringbuffer *rb)
 	rb->timestamp = 0;
 	GSL_RB_INIT_TIMESTAMP(rb);
 
+	INIT_LIST_HEAD(&rb->memqueue);
+
 	/* clear ME_HALT to start micro engine */
 	kgsl_yamato_regwrite(device, REG_CP_ME_CNTL, 0);
 
@@ -574,8 +532,6 @@ int kgsl_ringbuffer_init(struct kgsl_device *device)
 	rb->sizedwords = (2 << kgsl_cfg_rb_sizelog2quadwords);
 	rb->blksizequadwords = kgsl_cfg_rb_blksizequadwords;
 
-	INIT_LIST_HEAD(&rb->memqueue);
-
 	/* allocate memory for ringbuffer, needs to be double octword aligned
 	* align on page from contiguous physical memory
 	*/
@@ -658,53 +614,65 @@ int kgsl_ringbuffer_close(struct kgsl_ringbuffer *rb)
 
 static uint32_t
 kgsl_ringbuffer_addcmds(struct kgsl_ringbuffer *rb,
-				int pmodeoff, unsigned int *cmds,
+				unsigned int flags, unsigned int *cmds,
 				int sizedwords)
 {
-	unsigned int pmodesizedwords;
 	unsigned int *ringcmds;
 	unsigned int timestamp;
-	unsigned int i;
+	unsigned int total_sizedwords = sizedwords + 6;
 
 	/* reserve space to temporarily turn off protected mode
 	*  error checking if needed
 	*/
-	pmodesizedwords = pmodeoff ? 4 : 0;
+	total_sizedwords += flags & KGSL_CMD_FLAGS_PMODE ? 4 : 0;
+	total_sizedwords += !(flags & KGSL_CMD_FLAGS_NO_TS_CMP) ? 9 : 0;
 
-	ringcmds = kgsl_ringbuffer_allocspace(rb,
-					pmodesizedwords + sizedwords + 6);
+	ringcmds = kgsl_ringbuffer_allocspace(rb, total_sizedwords);
 
-	if (pmodeoff) {
+	if (flags & KGSL_CMD_FLAGS_PMODE) {
 		/* disable protected mode error checking */
-		GSL_RB_WRITE(ringcmds,
-			pm4_type3_packet(PM4_SET_PROTECTED_MODE, 1));
-		GSL_RB_WRITE(ringcmds, 0);
+		*ringcmds++ = pm4_type3_packet(PM4_SET_PROTECTED_MODE, 1);
+		*ringcmds++ = 0;
 	}
 
-	for (i = 0; i < sizedwords; i++) {
-		GSL_RB_WRITE(ringcmds, *cmds);
-		cmds++;
-	}
+	memcpy(ringcmds, cmds, (sizedwords << 2));
 
-	if (pmodeoff) {
+	ringcmds += sizedwords;
+
+	if (flags & KGSL_CMD_FLAGS_PMODE) {
 		/* re-enable protected mode error checking */
-		GSL_RB_WRITE(ringcmds,
-			pm4_type3_packet(PM4_SET_PROTECTED_MODE, 1));
-		GSL_RB_WRITE(ringcmds, 1);
+		*ringcmds++ = pm4_type3_packet(PM4_SET_PROTECTED_MODE, 1);
+		*ringcmds++ = 1;
 	}
 
 	rb->timestamp++;
 	timestamp = rb->timestamp;
 
 	/* start-of-pipeline and end-of-pipeline timestamps */
-	GSL_RB_WRITE(ringcmds, pm4_type0_packet(REG_CP_TIMESTAMP, 1));
-	GSL_RB_WRITE(ringcmds, rb->timestamp);
-	GSL_RB_WRITE(ringcmds, pm4_type3_packet(PM4_EVENT_WRITE, 3));
-	GSL_RB_WRITE(ringcmds, CACHE_FLUSH_TS);
-	GSL_RB_WRITE(ringcmds,
+	*ringcmds++ = pm4_type0_packet(REG_CP_TIMESTAMP, 1);
+	*ringcmds++ = rb->timestamp;
+	*ringcmds++ = pm4_type3_packet(PM4_EVENT_WRITE, 3);
+	*ringcmds++ = CACHE_FLUSH_TS;
+	*ringcmds++ =
 		     (rb->device->memstore.gpuaddr +
-		      KGSL_DEVICE_MEMSTORE_OFFSET(eoptimestamp)));
-	GSL_RB_WRITE(ringcmds, rb->timestamp);
+		      KGSL_DEVICE_MEMSTORE_OFFSET(eoptimestamp));
+	*ringcmds++ = rb->timestamp;
+
+	if (!(flags & KGSL_CMD_FLAGS_NO_TS_CMP)) {
+		/* Conditional execution based on memory values */
+		*ringcmds++ = pm4_type3_packet(PM4_COND_EXEC, 4);
+		*ringcmds++ = (rb->device->memstore.gpuaddr +
+			KGSL_DEVICE_MEMSTORE_OFFSET(ts_cmp_enable)) >> 2;
+		*ringcmds++ = (rb->device->memstore.gpuaddr +
+			KGSL_DEVICE_MEMSTORE_OFFSET(ref_wait_ts)) >> 2;
+		*ringcmds++ = rb->timestamp;
+		/* # of conditional command DWORDs */
+		*ringcmds++ = 4;
+		*ringcmds++ = pm4_type3_packet(PM4_WAIT_FOR_IDLE, 1);
+		*ringcmds++ = 0x00000000;
+		*ringcmds++ = pm4_type3_packet(PM4_INTERRUPT, 1);
+		*ringcmds++ = CP_INT_CNTL__RB_INT_MASK;
+	}
 
 	kgsl_ringbuffer_submit(rb);
 
@@ -719,17 +687,17 @@ kgsl_ringbuffer_addcmds(struct kgsl_ringbuffer *rb,
 
 uint32_t
 kgsl_ringbuffer_issuecmds(struct kgsl_device *device,
-						int pmodeoff,
+						unsigned int flags,
 						unsigned int *cmds,
 						int sizedwords)
 {
 	unsigned int timestamp;
 	struct kgsl_ringbuffer *rb = &device->ringbuffer;
 
-	KGSL_CMD_VDBG("enter (device->id=%d, pmodeoff=%d, cmds=%p, "
-		"sizedwords=%d)\n", device->id, pmodeoff, cmds, sizedwords);
+	KGSL_CMD_VDBG("enter (device->id=%d, flags=%d, cmds=%p, "
+		"sizedwords=%d)\n", device->id, flags, cmds, sizedwords);
 
-	timestamp = kgsl_ringbuffer_addcmds(rb, pmodeoff, cmds, sizedwords);
+	timestamp = kgsl_ringbuffer_addcmds(rb, flags, cmds, sizedwords);
 
 	KGSL_CMD_VDBG("return %d\n)", timestamp);
 	return timestamp;

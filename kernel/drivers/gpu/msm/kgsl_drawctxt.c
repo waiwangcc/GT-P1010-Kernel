@@ -1,57 +1,18 @@
 /* Copyright (c) 2002,2007-2009, Code Aurora Forum. All rights reserved.
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in the
- *       documentation and/or other materials provided with the distribution.
- *     * Neither the name of Code Aurora Forum nor
- *       the names of its contributors may be used to endorse or promote
- *       products derived from this software without specific prior written
- *       permission.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
  *
- * Alternatively, provided that this notice is retained in full, this software
- * may be relicensed by the recipient under the terms of the GNU General Public
- * License version 2 ("GPL") and only version 2, in which case the provisions of
- * the GPL apply INSTEAD OF those given above.  If the recipient relicenses the
- * software under the GPL, then the identification text in the MODULE_LICENSE
- * macro must be changed to reflect "GPLv2" instead of "Dual BSD/GPL".  Once a
- * recipient changes the license terms to the GPL, subsequent recipients shall
- * not relicense under alternate licensing terms, including the BSD or dual
- * BSD/GPL terms.  In addition, the following license statement immediately
- * below and between the words START and END shall also then apply when this
- * software is relicensed under the GPL:
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- * START
- *
- * This program is free software; you can redistribute it and/or modify it under
- * the terms of the GNU General Public License version 2 and only version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details.
- *
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
- *
- * END
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
  *
  */
 #include <linux/string.h>
@@ -64,6 +25,7 @@
 #include "kgsl.h"
 #include "kgsl_log.h"
 #include "kgsl_pm4types.h"
+#include "kgsl_cmdstream.h"
 
 /*
 *
@@ -210,8 +172,7 @@ unsigned int uint2float(unsigned int uintval)
 	}
 
 	/* Calculate fraction */
-	if (23 > exp)
-		frac = (uintval & (~(1 << exp))) << (23 - exp);
+	frac = (uintval & (~(1 << exp))) << (23 - exp);
 
 	/* Exp is biased by 127 and shifted 23 bits */
 	exp = (exp + 127) << 23;
@@ -510,6 +471,9 @@ static void build_regsave_cmds(struct kgsl_device *device,
 {
 	unsigned int *start = ctx->cmd;
 	unsigned int *cmd = start;
+	unsigned int pm_override1;
+
+	kgsl_yamato_regread(device, REG_RBBM_PM_OVERRIDE1, &pm_override1);
 
 	*cmd++ = pm4_type3_packet(PM4_WAIT_FOR_IDLE, 1);
 	*cmd++ = 0;
@@ -520,6 +484,10 @@ static void build_regsave_cmds(struct kgsl_device *device,
 	*cmd++ = pm4_type3_packet(PM4_CONTEXT_UPDATE, 1);
 	*cmd++ = 0;
 #endif
+
+	/* Enable clock override for REG_FIFOS_SCLK */
+	*cmd++ = pm4_type0_packet(REG_RBBM_PM_OVERRIDE1, 1);
+	*cmd++ = pm_override1 | (1 << 6);
 
 #ifdef DISABLE_SHADOW_WRITES
 	/* Write HW registers into shadow */
@@ -609,8 +577,12 @@ static void build_regsave_cmds(struct kgsl_device *device,
 	*cmd++ = ctx->reg_values[1];
 
 	*cmd++ = pm4_type3_packet(PM4_REG_TO_MEM, 2);
-	*cmd++ = REG_RBBM_PM_OVERRIDE2;
+	*cmd++ = REG_RBBM_PM_OVERRIDE1;
 	*cmd++ = ctx->reg_values[2];
+
+	*cmd++ = pm4_type3_packet(PM4_REG_TO_MEM, 2);
+	*cmd++ = REG_RBBM_PM_OVERRIDE2;
+	*cmd++ = ctx->reg_values[3];
 
 	/* Copy Boolean constants */
 	cmd = reg_to_mem(cmd, ctx->bool_shadow, REG_SQ_CF_BOOLEANS,
@@ -618,6 +590,12 @@ static void build_regsave_cmds(struct kgsl_device *device,
 
 	/* Copy Loop constants */
 	cmd = reg_to_mem(cmd, ctx->loop_shadow, REG_SQ_CF_LOOP, LOOP_CONSTANTS);
+
+	/* Restore RBBM_PM_OVERRIDE1 */
+	*cmd++ = pm4_type3_packet(PM4_WAIT_FOR_IDLE, 1);
+	*cmd++ = 0;
+	*cmd++ = pm4_type0_packet(REG_RBBM_PM_OVERRIDE1, 1);
+	*cmd++ = pm_override1;
 
 	/* create indirect buffer command for above command sequence */
 	create_ib1(drawctxt, drawctxt->reg_save, start, cmd);
@@ -633,11 +611,14 @@ static unsigned int *build_gmem2sys_cmds(struct kgsl_device *device,
 {
 	unsigned int *cmds = shadow->gmem_save_commands;
 	unsigned int *start = cmds;
+	unsigned int pm_override1;
 	/* Calculate the new offset based on the adjusted base */
 	unsigned int bytesperpixel = format2bytesperpixel[shadow->format];
 	unsigned int addr =
 	    (shadow->gmemshadow.gpuaddr + shadow->offset * bytesperpixel);
 	unsigned int offset = (addr - (addr & 0xfffff000)) / bytesperpixel;
+
+	kgsl_yamato_regread(device, REG_RBBM_PM_OVERRIDE1, &pm_override1);
 
 	/* Store TP0_CHICKEN register */
 	*cmds++ = pm4_type3_packet(PM4_REG_TO_MEM, 2);
@@ -649,6 +630,10 @@ static unsigned int *build_gmem2sys_cmds(struct kgsl_device *device,
 
 	*cmds++ = pm4_type3_packet(PM4_WAIT_FOR_IDLE, 1);
 	*cmds++ = 0;
+
+	/* Enable clock override for REG_FIFOS_SCLK */
+	*cmds++ = pm4_type0_packet(REG_RBBM_PM_OVERRIDE1, 1);
+	*cmds++ = pm_override1 | (1 << 6);
 
 	/* Set TP0_CHICKEN to zero */
 	*cmds++ = pm4_type0_packet(REG_TP0_CHICKEN, 1);
@@ -788,6 +773,11 @@ static unsigned int *build_gmem2sys_cmds(struct kgsl_device *device,
 	/* PrimType=RectList, NumIndices=3, SrcSel=AutoIndex */
 	*cmds++ = 0x00030088;
 
+	/* Restore RBBM_PM_OVERRIDE1 */
+	*cmds++ = pm4_type3_packet(PM4_WAIT_FOR_IDLE, 1);
+	*cmds++ = 0;
+	*cmds++ = pm4_type0_packet(REG_RBBM_PM_OVERRIDE1, 1);
+	*cmds++ = pm_override1;
 	/* create indirect buffer command for above command sequence */
 	create_ib1(drawctxt, shadow->gmem_save, start, cmds);
 
@@ -804,6 +794,9 @@ static unsigned int *build_sys2gmem_cmds(struct kgsl_device *device,
 {
 	unsigned int *cmds = shadow->gmem_restore_commands;
 	unsigned int *start = cmds;
+	unsigned int pm_override1;
+
+	kgsl_yamato_regread(device, REG_RBBM_PM_OVERRIDE1, &pm_override1);
 
 	/* Store TP0_CHICKEN register */
 	*cmds++ = pm4_type3_packet(PM4_REG_TO_MEM, 2);
@@ -815,6 +808,10 @@ static unsigned int *build_sys2gmem_cmds(struct kgsl_device *device,
 
 	*cmds++ = pm4_type3_packet(PM4_WAIT_FOR_IDLE, 1);
 	*cmds++ = 0;
+
+	/* Enable clock override for REG_FIFOS_SCLK */
+	*cmds++ = pm4_type0_packet(REG_RBBM_PM_OVERRIDE1, 1);
+	*cmds++ = pm_override1 | (1 << 6);
 
 	/* Set TP0_CHICKEN to zero */
 	*cmds++ = pm4_type0_packet(REG_TP0_CHICKEN, 1);
@@ -986,6 +983,12 @@ static unsigned int *build_sys2gmem_cmds(struct kgsl_device *device,
 	/* PrimType=RectList, NumIndices=3, SrcSel=AutoIndex */
 	*cmds++ = 0x00030088;
 
+	/* Restore RBBM_PM_OVERRIDE1 */
+	*cmds++ = pm4_type3_packet(PM4_WAIT_FOR_IDLE, 1);
+	*cmds++ = 0;
+	*cmds++ = pm4_type0_packet(REG_RBBM_PM_OVERRIDE1, 1);
+	*cmds++ = pm_override1;
+
 	/* create indirect buffer command for above command sequence */
 	create_ib1(drawctxt, shadow->gmem_restore, start, cmds);
 
@@ -1007,9 +1010,16 @@ static void build_regrestore_cmds(struct kgsl_device *device,
 {
 	unsigned int *start = ctx->cmd;
 	unsigned int *cmd = start;
+	unsigned int pm_override1;
+
+	kgsl_yamato_regread(device, REG_RBBM_PM_OVERRIDE1, &pm_override1);
 
 	*cmd++ = pm4_type3_packet(PM4_WAIT_FOR_IDLE, 1);
 	*cmd++ = 0;
+
+	/* Enable clock override for REG_FIFOS_SCLK */
+	*cmd++ = pm4_type0_packet(REG_RBBM_PM_OVERRIDE1, 1);
+	*cmd++ = pm_override1 | (1 << 6);
 
 	/* H/W Registers */
 	/* deferred pm4_type3_packet(PM4_LOAD_CONSTANT_CONTEXT, ???); */
@@ -1036,13 +1046,13 @@ static void build_regrestore_cmds(struct kgsl_device *device,
 	/* Now we know how many register blocks we have, we can compute command
 	 * length
 	 */
-	start[2] =
-	    pm4_type3_packet(PM4_LOAD_CONSTANT_CONTEXT, (cmd - start) - 3);
+	start[4] =
+	    pm4_type3_packet(PM4_LOAD_CONSTANT_CONTEXT, (cmd - start) - 5);
 	/* Enable shadowing for the entire register block. */
 #ifdef DISABLE_SHADOW_WRITES
-	start[4] |= (0 << 24) | (4 << 16);	/* Disable shadowing. */
+	start[6] |= (0 << 24) | (4 << 16);	/* Disable shadowing. */
 #else
-	start[4] |= (1 << 24) | (4 << 16);
+	start[6] |= (1 << 24) | (4 << 16);
 #endif
 
 	/* Need to handle some of the registers separately */
@@ -1056,8 +1066,12 @@ static void build_regrestore_cmds(struct kgsl_device *device,
 	ctx->reg_values[1] = gpuaddr(cmd, &drawctxt->gpustate);
 	*cmd++ = 0x00000000;
 
-	*cmd++ = pm4_type0_packet(REG_RBBM_PM_OVERRIDE2, 1);
+	*cmd++ = pm4_type0_packet(REG_RBBM_PM_OVERRIDE1, 1);
 	ctx->reg_values[2] = gpuaddr(cmd, &drawctxt->gpustate);
+	*cmd++ = 0x00000000;
+
+	*cmd++ = pm4_type0_packet(REG_RBBM_PM_OVERRIDE2, 1);
+	ctx->reg_values[3] = gpuaddr(cmd, &drawctxt->gpustate);
 	*cmd++ = 0x00000000;
 
 	/* ALU Constants */
@@ -1100,6 +1114,12 @@ static void build_regrestore_cmds(struct kgsl_device *device,
 	 */
 	ctx->loop_shadow = gpuaddr(cmd, &drawctxt->gpustate);
 	cmd += LOOP_CONSTANTS;
+
+	/* Restore RBBM_PM_OVERRIDE1 */
+	*cmd++ = pm4_type3_packet(PM4_WAIT_FOR_IDLE, 1);
+	*cmd++ = 0;
+	*cmd++ = pm4_type0_packet(REG_RBBM_PM_OVERRIDE1, 1);
+	*cmd++ = pm_override1;
 
 	/* create indirect buffer command for above command sequence */
 	create_ib1(drawctxt, drawctxt->reg_restore, start, cmd);
@@ -1693,8 +1713,8 @@ kgsl_drawctxt_switch(struct kgsl_device *device, struct kgsl_drawctxt *drawctxt,
 		if (active_ctxt->flags & CTXT_FLAGS_SHADER_SAVE) {
 			/* save shader partitioning and instructions. */
 			KGSL_CTXT_DBG("save shader");
-			kgsl_ringbuffer_issuecmds(device, 1,
-					active_ctxt->shader_save, 3);
+			kgsl_ringbuffer_issuecmds(device, KGSL_CMD_FLAGS_PMODE,
+						  active_ctxt->shader_save, 3);
 
 			/* fixup shader partitioning parameter for
 			 *  SET_SHADER_BASES.
@@ -1716,7 +1736,8 @@ kgsl_drawctxt_switch(struct kgsl_device *device, struct kgsl_drawctxt *drawctxt,
 			for (i = 0; i < KGSL_MAX_GMEM_SHADOW_BUFFERS; i++) {
 				if (active_ctxt->user_gmem_shadow[i].gmemshadow.
 				    size > 0) {
-					kgsl_ringbuffer_issuecmds(device, 1,
+					kgsl_ringbuffer_issuecmds(device,
+						KGSL_CMD_FLAGS_PMODE,
 					  active_ctxt->user_gmem_shadow[i].
 						gmem_save, 3);
 
@@ -1728,9 +1749,10 @@ kgsl_drawctxt_switch(struct kgsl_device *device, struct kgsl_drawctxt *drawctxt,
 				}
 			}
 			if (numbuffers == 0) {
-				kgsl_ringbuffer_issuecmds(device, 1,
-					 active_ctxt->context_gmem_shadow.
-						gmem_save, 3);
+				kgsl_ringbuffer_issuecmds(device,
+				    KGSL_CMD_FLAGS_PMODE,
+				    active_ctxt->context_gmem_shadow.gmem_save,
+				    3);
 
 				/* Restore TP0_CHICKEN */
 				kgsl_ringbuffer_issuecmds(device, 0,
@@ -1760,7 +1782,8 @@ kgsl_drawctxt_switch(struct kgsl_device *device, struct kgsl_drawctxt *drawctxt,
 			for (i = 0; i < KGSL_MAX_GMEM_SHADOW_BUFFERS; i++) {
 				if (drawctxt->user_gmem_shadow[i].gmemshadow.
 				    size > 0) {
-					kgsl_ringbuffer_issuecmds(device, 1,
+					kgsl_ringbuffer_issuecmds(device,
+						KGSL_CMD_FLAGS_PMODE,
 					  drawctxt->user_gmem_shadow[i].
 						gmem_restore, 3);
 
@@ -1771,7 +1794,8 @@ kgsl_drawctxt_switch(struct kgsl_device *device, struct kgsl_drawctxt *drawctxt,
 				}
 			}
 			if (numbuffers == 0) {
-				kgsl_ringbuffer_issuecmds(device, 1,
+				kgsl_ringbuffer_issuecmds(device,
+					KGSL_CMD_FLAGS_PMODE,
 				  drawctxt->context_gmem_shadow.gmem_restore,
 					3);
 
