@@ -102,9 +102,6 @@ int drm_debugfs_create_files(struct drm_info_list *files, int count,
 
 		tmp = drm_alloc(sizeof(struct drm_info_node),
 				_DRM_DRIVER);
-		if (tmp == NULL) {
-			ret = -1;
-			goto fail;
 		ent = debugfs_create_file(files[i].name, S_IFREG | S_IRUGO,
 					  root, tmp, &drm_debugfs_fops);
 		if (!ent) {
