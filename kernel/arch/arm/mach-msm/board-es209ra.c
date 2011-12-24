@@ -158,8 +158,8 @@
 
 #define SMEM_SPINLOCK_I2C	"S:6"
 
-#define MSM_PMEM_ADSP_SIZE	0x2B96000
-#define MSM_FB_SIZE		0x500000
+#define MSM_PMEM_ADSP_SIZE	0x2A05000
+#define MSM_FB_SIZE		0x2EE000
 #define MSM_AUDIO_SIZE		0x80000
 #define MSM_GPU_PHYS_SIZE 	SZ_2M
 
@@ -883,7 +883,7 @@ static void msm_qsd_spi_gpio_release(void)
 }
 
 static struct msm_spi_platform_data qsd_spi_pdata = {
-	.max_clock_speed = 19200000,
+	.max_clock_speed = 38400000,
 	.clk_name = "spi_clk",
 	.gpio_config  = msm_qsd_spi_gpio_config,
 	.gpio_release = msm_qsd_spi_gpio_release,
