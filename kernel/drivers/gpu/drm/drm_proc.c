@@ -15,7 +15,6 @@
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
  * Copyright 2000 VA Linux Systems, Inc., Sunnyvale, California.
- * Copyright (c) 2009, Code Aurora Forum.
  * All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -60,7 +59,6 @@ static struct drm_info_list drm_proc_list[] = {
 	{"vma", drm_vma_info, 0},
 #endif
 };
-
 #define DRM_PROC_ENTRIES ARRAY_SIZE(drm_proc_list)
 
 static int drm_proc_open(struct inode *inode, struct file *file)
@@ -107,7 +105,7 @@ int drm_proc_create_files(struct drm_info_list *files, int count,
 		    (dev->driver->driver_features & features) != features)
 			continue;
 
-		tmp = drm_alloc(sizeof(struct drm_info_node), _DRM_DRIVER);
+		tmp = kmalloc(sizeof(struct drm_info_node), GFP_KERNEL);
 		if (tmp == NULL) {
 			ret = -1;
 			goto fail;
@@ -122,13 +120,14 @@ int drm_proc_create_files(struct drm_info_list *files, int count,
 			DRM_ERROR("Cannot create /proc/dri/%s/%s\n",
 				  name, files[i].name);
 			list_del(&tmp->list);
-			drm_free(tmp, sizeof(struct drm_info_node),
-				 _DRM_DRIVER);
+			kfree(tmp);
 			ret = -1;
 			goto fail;
 		}
+
 	}
 	return 0;
+
 fail:
 	for (i = 0; i < count; i++)
 		remove_proc_entry(drm_proc_list[i].name, minor->proc_root);
@@ -137,9 +136,10 @@ fail:
 
 /**
  * Initialize the DRI proc filesystem for a device
+ *
  * \param dev DRM device
  * \param minor device minor number
-  * \param root DRI proc dir entry.
+ * \param root DRI proc dir entry.
  * \param dev_root resulting DRI device proc dir entry.
  * \return root entry pointer on success, or NULL on failure.
  *
@@ -196,8 +196,7 @@ int drm_proc_remove_files(struct drm_info_list *files, int count,
 				remove_proc_entry(files[i].name,
 						  minor->proc_root);
 				list_del(pos);
-				drm_free(tmp, sizeof(struct drm_info_node),
-					 _DRM_DRIVER);
+				kfree(tmp);
 			}
 		}
 	}
@@ -221,6 +220,7 @@ int drm_proc_cleanup(struct drm_minor *minor, struct proc_dir_entry *root)
 
 	if (!root || !minor->proc_root)
 		return 0;
+
 	if (dev->driver->proc_cleanup)
 		dev->driver->proc_cleanup(minor);
 
@@ -231,3 +231,4 @@ int drm_proc_cleanup(struct drm_minor *minor, struct proc_dir_entry *root)
 
 	return 0;
 }
+

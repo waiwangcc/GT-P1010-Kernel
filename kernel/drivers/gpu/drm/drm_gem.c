@@ -99,7 +99,7 @@ drm_gem_init(struct drm_device *dev)
 	atomic_set(&dev->gtt_count, 0);
 	atomic_set(&dev->gtt_memory, 0);
 
-	mm = drm_calloc(1, sizeof(struct drm_gem_mm), DRM_MEM_MM);
+	mm = kzalloc(sizeof(struct drm_gem_mm), GFP_KERNEL);
 	if (!mm) {
 		DRM_ERROR("out of memory\n");
 		return -ENOMEM;
@@ -108,14 +108,14 @@ drm_gem_init(struct drm_device *dev)
 	dev->mm_private = mm;
 
 	if (drm_ht_create(&mm->offset_hash, 19)) {
-		drm_free(mm, sizeof(struct drm_gem_mm), DRM_MEM_MM);
+		kfree(mm);
 		return -ENOMEM;
 	}
 
 	if (drm_mm_init(&mm->offset_manager, DRM_FILE_PAGE_OFFSET_START,
 			DRM_FILE_PAGE_OFFSET_SIZE)) {
 		drm_ht_remove(&mm->offset_hash);
-		drm_free(mm, sizeof(struct drm_gem_mm), DRM_MEM_MM);
+		kfree(mm);
 		return -ENOMEM;
 	}
 
@@ -129,7 +129,7 @@ drm_gem_destroy(struct drm_device *dev)
 
 	drm_mm_takedown(&mm->offset_manager);
 	drm_ht_remove(&mm->offset_hash);
-	drm_free(mm, sizeof(struct drm_gem_mm), DRM_MEM_MM);
+	kfree(mm);
 	dev->mm_private = NULL;
 }
 
@@ -174,7 +174,7 @@ EXPORT_SYMBOL(drm_gem_object_alloc);
  * Removes the mapping from handle to filp for this object.
  */
 static int
-drm_gem_handle_delete(struct drm_file *filp, int handle)
+drm_gem_handle_delete(struct drm_file *filp, u32 handle)
 {
 	struct drm_device *dev;
 	struct drm_gem_object *obj;
@@ -217,7 +217,7 @@ drm_gem_handle_delete(struct drm_file *filp, int handle)
 int
 drm_gem_handle_create(struct drm_file *file_priv,
 		       struct drm_gem_object *obj,
-		       int *handlep)
+		       u32 *handlep)
 {
 	int	ret;
 
@@ -231,7 +231,7 @@ again:
 
 	/* do the allocation under our spinlock */
 	spin_lock(&file_priv->table_lock);
-	ret = idr_get_new_above(&file_priv->object_idr, obj, 1, handlep);
+	ret = idr_get_new_above(&file_priv->object_idr, obj, 1, (int *)handlep);
 	spin_unlock(&file_priv->table_lock);
 	if (ret == -EAGAIN)
 		goto again;
@@ -247,7 +247,7 @@ EXPORT_SYMBOL(drm_gem_handle_create);
 /** Returns a reference to the object named by the handle. */
 struct drm_gem_object *
 drm_gem_object_lookup(struct drm_device *dev, struct drm_file *filp,
-		      int handle)
+		      u32 handle)
 {
 	struct drm_gem_object *obj;
 
@@ -354,7 +354,7 @@ drm_gem_open_ioctl(struct drm_device *dev, void *data,
 	struct drm_gem_open *args = data;
 	struct drm_gem_object *obj;
 	int ret;
-	int handle;
+	u32 handle;
 
 	if (!(dev->driver->driver_features & DRIVER_GEM))
 		return -ENODEV;
@@ -516,7 +516,7 @@ int drm_gem_mmap(struct file *filp, struct vm_area_struct *vma)
 	struct drm_file *priv = filp->private_data;
 	struct drm_device *dev = priv->minor->dev;
 	struct drm_gem_mm *mm = dev->mm_private;
-	struct drm_map *map = NULL;
+	struct drm_local_map *map = NULL;
 	struct drm_gem_object *obj;
 	struct drm_hash_item *hash;
 	int ret = 0;
@@ -550,8 +550,7 @@ int drm_gem_mmap(struct file *filp, struct vm_area_struct *vma)
 	vma->vm_flags |= VM_RESERVED | VM_IO | VM_PFNMAP | VM_DONTEXPAND;
 	vma->vm_ops = obj->dev->driver->gem_vm_ops;
 	vma->vm_private_data = map->handle;
-	/* FIXME: use pgprot_writecombine when available */
-	vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
+	vma->vm_page_prot =  pgprot_writecombine(vm_get_page_prot(vma->vm_flags));
 
 	/* Take a ref for this mapping of the object, so that the fault
 	 * handler can dereference the mmap offset's pointer to the object.
